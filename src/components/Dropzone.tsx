@@ -78,26 +78,26 @@ export const Dropzone = () => {
           Up to 50 image, max 10 MB each.
         </p>
       </main>
-      {selectedFiles.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, type: "spring", bounce: 0 }}
-          className="transition-all flex flex-col justify-center items-center w-full max-w-screen-lg mt-5 border rounded py-4"
-        >
-          <div className="mt-2">
-            {selectedFiles.map(({ name, size }) => (
-              <div
-                key={name}
-                className="text-slate-400 text-sm flex flex-wrap justify-between"
-              >
-                {name}
-                {convertSizeFileAndUnit(size)}
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{
+          opacity: selectedFiles.length > 0 ? 1 : 0,
+        }}
+        transition={{ duration: 0.5, type: "spring", bounce: 0 }}
+        className="transition-all flex flex-col justify-center items-center w-full max-w-screen-lg mt-5 border rounded py-4"
+      >
+        <div className="mt-2">
+          {selectedFiles.map(({ name, size }) => (
+            <div
+              key={name}
+              className="text-slate-400 text-sm flex flex-wrap justify-between"
+            >
+              {name}
+              {convertSizeFileAndUnit(size)}
+            </div>
+          ))}
+        </div>
+      </motion.div>
     </>
   );
 };
