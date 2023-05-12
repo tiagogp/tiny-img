@@ -8,7 +8,7 @@ import ItemDropzone from "./ItemDropzone";
 import useMediaQuery from "@/hooks/useMediaQuery";
 import JSZip from "jszip";
 import { Spinner } from "../Spinner";
-import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
+import { Counter } from "../Counter";
 
 export const Dropzone = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -85,6 +85,8 @@ export const Dropzone = () => {
     });
   }, []);
 
+  console.log(newFiles.length, selectedFiles.length);
+
   const reduceNewFilesValue = newFiles.reduce((acc, cur) => acc + cur.size, 0);
 
   const reduceSelectedFilesValue = selectedFiles.reduce(
@@ -142,8 +144,8 @@ export const Dropzone = () => {
         animate={{
           opacity: selectedFiles.length > 0 ? 1 : 0,
         }}
-        transition={{ duration: 0.5, type: "spring", bounce: 0 }}
-        className={`transition-all flex flex-col  w-11/12 max-w-screen-lg mt-5 border rounded  px-4 max-h-[180px] xs:max-h-[300px] overflow-auto relative bg-white z-10`}
+        transition={{ duration: 1, type: "spring", bounce: 0 }}
+        className={`transition-all flex flex-col  w-11/12 max-w-screen-lg mt-5 border rounded px-4 max-h-[20  0px] xs:max-h-[300px] overflow-auto relative bg-white z-10`}
       >
         {selectedFiles.map((item, index) => (
           <ItemDropzone
@@ -156,27 +158,33 @@ export const Dropzone = () => {
           />
         ))}
       </motion.div>
-      {reduceTotalValue > 0 && (
+      {selectedFiles.length === newFiles.length && (
         <motion.div
-          initial={{ opacity: 0, y: -30 }}
+          initial={{ opacity: 0, y: -30, height: 48 }}
           animate={{
             opacity: reduceTotalValue > 0 ? 1 : 0,
             y: reduceTotalValue > 0 ? 0 : -30,
+            height: reduceTotalValue > 0 ? 48 : 0,
           }}
           transition={{
             duration: 1,
             type: "spring",
             bounce: 0,
-            delay: reduceTotalValue > 0 ? 0.5 : 0,
           }}
-          className="flex items-center justify-center gap-4 py-3 px-4 bg-gray-100 w-11/12 max-w-screen-lg rounded-b -mt-1"
+          className="flex items-center justify-center gap-2  px-4 bg-gray-100 w-11/12 max-w-screen-lg rounded-b -mt-1"
         >
           <p className="text-slate-400 text-xs md:text-sm">
             Tinyimg will reduce the size by
           </p>
-          <p className="text-slate-700 font-bold text-sm md:text-sm">
-            {reduceTotalValue.toFixed(2)}%
-          </p>
+          <div className="flex text-slate-700 font-bold text-sm md:text-sm">
+            <Counter
+              from={0}
+              to={Number(reduceTotalValue.toFixed(2))}
+              duration={1}
+              delay={reduceTotalValue > 0 ? 0.5 : 0}
+            />
+            %
+          </div>
         </motion.div>
       )}
       {selectedFiles.length > 0 && (
@@ -198,7 +206,7 @@ export const Dropzone = () => {
             (newFiles.length !== selectedFiles.length && (
               <Spinner className="mr-1" />
             ))}
-          download
+          Download All
         </motion.button>
       )}
     </>
