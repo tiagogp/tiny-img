@@ -6,14 +6,14 @@ import React, { useState } from "react";
 import { verifyFile } from "../../utils/verifyFile";
 import imageCompression from "browser-image-compression";
 import { ItemDropzone } from "./ItemDropzone";
-
-interface IFile extends File {
-  oldSize: number;
-}
+import useMediaQuery from "@/hooks/useMediaQuery";
 
 export const Dropzone = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [enableCompression, setEnableCompression] = useState(false);
+
+  const matches = useMediaQuery("(max-width: 480px)");
 
   const handleFileSelect = (event: any) => {
     const files = Array.from(event.target.files as File[]).filter((item) =>
@@ -87,6 +87,8 @@ export const Dropzone = () => {
     setSelectedFiles(newSelectedFiles);
   };
 
+  console.log(matches);
+
   return (
     <>
       <main
@@ -123,6 +125,7 @@ export const Dropzone = () => {
           Up to 50 image, max 10 MB each.
         </p>
       </main>
+
       <motion.div
         initial={{ opacity: 0 }}
         animate={{
@@ -133,11 +136,15 @@ export const Dropzone = () => {
       >
         {selectedFiles.map((item, index) => (
           <ItemDropzone
+            enableCompression={enableCompression}
             index={index}
             key={`${item.name}-${index}`}
             file={item}
             deleteFile={deleteFile}
+            isMobile={matches}
             updateSelectedFiles={updateSelectedFiles}
+            isLast={index === selectedFiles.length - 1}
+            setEnableCompression={setEnableCompression}
           />
         ))}
       </motion.div>

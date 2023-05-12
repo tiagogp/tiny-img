@@ -1,4 +1,4 @@
-import React, { FC, useEffect } from "react";
+import React, { FC, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import imageCompression from "browser-image-compression";
@@ -13,12 +13,20 @@ interface ItemDropzoneProps {
     }
   ): void;
   deleteFile(index: number): void;
+  isMobile: boolean;
+  enableCompression: boolean;
+  setEnableCompression: (value: boolean) => void;
+  isLast: boolean;
 }
 
 export const ItemDropzone: FC<ItemDropzoneProps> = ({
   file,
   index,
   updateSelectedFiles,
+  isMobile,
+  enableCompression,
+  setEnableCompression,
+  isLast,
 }) => {
   const [isLoaded, setIsLoaded] = React.useState(false);
   const [newFile, setNewFile] = React.useState<File | null>(null);
@@ -26,7 +34,6 @@ export const ItemDropzone: FC<ItemDropzoneProps> = ({
   const { name, size } = file;
   const handleDownload = async () => {
     if (newFile) {
-      console.log(newFile);
       const { name, type } = newFile;
       const downloadLink = document.createElement("a");
       downloadLink.href = URL.createObjectURL(newFile);
@@ -38,22 +45,30 @@ export const ItemDropzone: FC<ItemDropzoneProps> = ({
     }
   };
 
+  useMemo(() => {
+    if (isLast) {
+      setEnableCompression(true);
+    }
+  }, [isLast, setEnableCompression]);
+
   useEffect(() => {
-    (async () => {
-      setIsLoaded(true);
-      const compressedFiles = await imageCompression(file, {
-        maxSizeMB: 50,
-        maxWidthOrHeight: 1920,
-      });
-      setIsLoaded(false);
+    if (enableCompression) {
+      (async () => {
+        setIsLoaded(true);
+        const compressedFiles = await imageCompression(file, {
+          maxSizeMB: file.size / 1000000,
+          maxWidthOrHeight: 1920,
+        });
+        setIsLoaded(false);
 
-      setNewFile(compressedFiles);
+        setNewFile(compressedFiles);
 
-      updateSelectedFiles(index, {
-        newFile: compressedFiles,
-      });
-    })();
-  }, []);
+        updateSelectedFiles(index, {
+          newFile: compressedFiles,
+        });
+      })();
+    }
+  }, [enableCompression]);
 
   return (
     <motion.div
@@ -63,7 +78,7 @@ export const ItemDropzone: FC<ItemDropzoneProps> = ({
       }}
       animate={{
         opacity: 1,
-        height: 48,
+        height: isMobile ? 78 : 56,
       }}
       transition={{
         duration: 0.5,
@@ -72,10 +87,10 @@ export const ItemDropzone: FC<ItemDropzoneProps> = ({
         bounce: 0,
       }}
       key={`${name}-${index}`}
-      className="text-slate-400 text-sm flex flex-wrap items-center justify-between w-full border-b py-4 last-of-type:border-b-0 border-slate-100"
+      className="text-slate-400 text-sm flex flex-wrap items-center justify-between w-full border-b py-4 last-of-type:border-b-0 border-slate-100 h-24 sm:h-14 gap-y-2"
     >
-      <p className="w-[15rem] truncate">{name}</p>
-      <div className="flex items-center gap-4 justify-start bg-slate-50">
+      <p className="w-[10rem] truncate ">{name}</p>
+      <div className="flex items-center gap-4 justify-start ">
         <p
           className={`${
             newFile && "line-through text-xs opacity-50"
@@ -103,7 +118,7 @@ export const ItemDropzone: FC<ItemDropzoneProps> = ({
         <div className="flex items-center gap-4">
           <button
             onClick={handleDownload}
-            className="text-blue-400 hover:text-blue-500"
+            className="text-blue-400 hover:text-blue-500 py-1 px-2 rounded-md border border-blue-400 hover:border-blue-500 hover:bg-blue-100 transition-all duration-200 ease-in-out text-xs"
           >
             Download
           </button>
