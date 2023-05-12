@@ -18,7 +18,7 @@ export const Dropzone = () => {
       verifyFile(item as File)
     );
 
-    setSelectedFiles([...selectedFiles, ...files.slice(0, 100)]);
+    setSelectedFiles([...selectedFiles, ...files.slice(0, 30)]);
   };
 
   const handleFileDrop = (event: DragEvent<HTMLElement>) => {
@@ -28,7 +28,7 @@ export const Dropzone = () => {
       verifyFile(item as File)
     );
 
-    setSelectedFiles([...selectedFiles, ...files.slice(0, 100)]);
+    setSelectedFiles([...selectedFiles, ...files.slice(0, 30)]);
   };
 
   const handleDownload = async () => {
@@ -104,7 +104,7 @@ export const Dropzone = () => {
           Drop your WebP, PNG or JPEG files here!
         </h3>
         <p className="text-slate-400 text-xs md:text-sm mt-1">
-          Up to 100 image, max 100 MB each.
+          Up to 30 image, max 100 MB each.
         </p>
       </main>
 
