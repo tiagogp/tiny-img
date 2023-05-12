@@ -1,4 +1,4 @@
-import React, { FC, useMemo } from "react";
+import React, { FC, memo, useMemo } from "react";
 import { motion } from "framer-motion";
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import imageCompression from "browser-image-compression";
@@ -8,9 +8,15 @@ interface ItemDropzoneProps {
   file: File;
   deleteFile(index: number): void;
   isMobile: boolean;
+  setNewFiles(files: File): void;
 }
 
-const ItemDropzone: FC<ItemDropzoneProps> = ({ file, index, isMobile }) => {
+const ItemDropzone: FC<ItemDropzoneProps> = ({
+  file,
+  index,
+  isMobile,
+  setNewFiles,
+}) => {
   const [newFile, setNewFile] = React.useState<File | null>(null);
 
   const { name, size } = file;
@@ -35,6 +41,7 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({ file, index, isMobile }) => {
           maxWidthOrHeight: 1920,
         });
 
+        setNewFiles(compressedFiles);
         setNewFile(compressedFiles);
       })();
     }, 700 + (100 * index + 1));
@@ -103,4 +110,4 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({ file, index, isMobile }) => {
   );
 };
 
-export default ItemDropzone;
+export default memo(ItemDropzone);

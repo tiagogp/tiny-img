@@ -2,14 +2,17 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import React, { DragEvent, useState } from "react";
+import React, { DragEvent, useCallback, useState } from "react";
 import { verifyFile } from "../../utils/verifyFile";
 import ItemDropzone from "./ItemDropzone";
 import useMediaQuery from "@/hooks/useMediaQuery";
+import JSZip from "jszip";
+import { Spinner } from "../Spinner";
 
 export const Dropzone = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [newFiles, setNewFiles] = useState<File[]>([]);
 
   const matches = useMediaQuery("(max-width: 480px)");
 
@@ -32,7 +35,19 @@ export const Dropzone = () => {
   };
 
   const handleDownload = async () => {
-    console.log("handleDownload" + selectedFiles[0]);
+    const zip = new JSZip();
+
+    await Promise.all(
+      newFiles.map(async (file, index) => {
+        zip.file(`${file.name}-${index}.jpg`, file);
+      })
+    );
+
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    const downloadLink = document.createElement("a");
+    downloadLink.href = URL.createObjectURL(zipBlob);
+    downloadLink.download = "tinyimg.zip";
+    downloadLink.click();
   };
 
   const dragEnter = (event: DragEvent<HTMLElement>) => {
@@ -50,26 +65,33 @@ export const Dropzone = () => {
     setIsDragging(false);
   };
 
-  const updateSelectedFiles = (
-    index: number,
-    newValues: {
-      newFile: File;
-    }
-  ) => {
-    const newSelectedFiles = [...selectedFiles];
-    newSelectedFiles.filter((oldValues, i) =>
-      i === index ? { ...oldValues, ...newValues } : oldValues
-    );
-
-    setSelectedFiles(newSelectedFiles);
-  };
-
   const deleteFile = (index: number) => {
     const newSelectedFiles = [...selectedFiles];
     newSelectedFiles.splice(index, 1);
 
     setSelectedFiles(newSelectedFiles);
   };
+
+  const updateNewFiles = useCallback(
+    (file: File) => {
+      const newSelectedFiles = [...selectedFiles];
+      const values = newSelectedFiles.find(
+        (oldValues) => oldValues.name === file.name
+      );
+
+      if (values) {
+        const correctNewFile = newSelectedFiles.filter((oldValues, i) =>
+          oldValues.name === file.name ? { ...oldValues, ...values } : oldValues
+        );
+
+        setNewFiles(correctNewFile);
+        return;
+      }
+
+      setNewFiles((prev) => [...prev, file]);
+    },
+    [selectedFiles]
+  );
 
   return (
     <>
@@ -79,7 +101,7 @@ export const Dropzone = () => {
         onDragLeave={dragLeave}
         onDrop={handleFileDrop}
         onDragOver={(event) => event.preventDefault()}
-        className={` transition-all select-none flex flex-col justify-center items-center w-11/12 max-w-screen-lg  h-80 border rounded border-dashed ${
+        className={`relative transition-all select-none flex flex-col justify-center items-center w-11/12 max-w-screen-lg py-4 sm:h-80 border rounded border-dashed ${
           isDragging
             ? "border-blue-400 bg-blue-100/50"
             : "border-slate-300 bg-slate-50/50"
@@ -114,7 +136,7 @@ export const Dropzone = () => {
           opacity: selectedFiles.length > 0 ? 1 : 0,
         }}
         transition={{ duration: 0.5, type: "spring", bounce: 0 }}
-        className="transition-all flex flex-col  w-11/12 max-w-screen-lg mt-5 border rounded  px-4  "
+        className={`transition-all flex flex-col  w-11/12 max-w-screen-lg mt-5 border rounded  px-4 max-h-[200px] xs:max-h-[300px] overflow-auto`}
       >
         {selectedFiles.map((item, index) => (
           <ItemDropzone
@@ -123,6 +145,7 @@ export const Dropzone = () => {
             file={item}
             deleteFile={deleteFile}
             isMobile={matches}
+            setNewFiles={updateNewFiles}
           />
         ))}
       </motion.div>
@@ -135,10 +158,17 @@ export const Dropzone = () => {
           }}
           transition={{ duration: 0.5, type: "spring", bounce: 0 }}
           onClick={handleDownload}
-          className={`transition-all mt-5 flex items-center justify-center rounded font-medium py-2 px-6 bg-black hover:bg-black/90 text-white active:scale-[.97] active:translate-y-0.5
+          className={`disabled:bg-slate-200 disabled:text-gray-400 transition-all mt-5 flex items-center justify-center rounded font-medium py-2 px-6 bg-black hover:bg-black/90 text-white active:scale-[.97] active:translate-y-0.5
             `}
-          disabled={selectedFiles.length === 0}
+          disabled={
+            selectedFiles.length === 0 ||
+            newFiles.length !== selectedFiles.length
+          }
         >
+          {selectedFiles.length === 0 ||
+            (newFiles.length !== selectedFiles.length && (
+              <Spinner className="mr-1" />
+            ))}
           download
         </motion.button>
       )}
