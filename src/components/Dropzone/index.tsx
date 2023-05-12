@@ -137,10 +137,10 @@ export const Dropzone = () => {
           itemType="image/png"
           name="file"
         />
-        <h3 className="font-semibold text-slate-700 text-sm md:text-base mt-5 text-center w-11/12">
+        <h3 className="font-semibold text-gray-800 text-sm md:text-base mt-5 text-center w-11/12">
           Drop your WebP, PNG or JPEG files here!
         </h3>
-        <p className="text-slate-500 text-xs md:text-sm mt-1">
+        <p className="text-gray-600 text-xs md:text-sm mt-1">
           Up to 30 image, max 100 MB each.
         </p>
       </main>
