@@ -2,16 +2,14 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import React, { useState } from "react";
+import React, { DragEvent, useState } from "react";
 import { verifyFile } from "../../utils/verifyFile";
-import imageCompression from "browser-image-compression";
-import { ItemDropzone } from "./ItemDropzone";
+import ItemDropzone from "./ItemDropzone";
 import useMediaQuery from "@/hooks/useMediaQuery";
 
 export const Dropzone = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [enableCompression, setEnableCompression] = useState(false);
 
   const matches = useMediaQuery("(max-width: 480px)");
 
@@ -20,48 +18,34 @@ export const Dropzone = () => {
       verifyFile(item as File)
     );
 
-    setSelectedFiles([...selectedFiles, ...files]);
+    setSelectedFiles([...selectedFiles, ...files.slice(0, 25)]);
   };
 
-  const handleFileDrop = (event: any) => {
-    event.preventDefault();
+  const handleFileDrop = (event: DragEvent<HTMLElement>) => {
     setIsDragging(false);
-    const files = Object.values(event.dataTransfer.files as File[]).filter(
-      (item) => verifyFile(item as File)
+
+    const files = Object.values(event.dataTransfer.files).filter((item) =>
+      verifyFile(item as File)
     );
 
-    setSelectedFiles([...selectedFiles, ...files]);
+    setSelectedFiles([...selectedFiles, ...files.slice(0, 25)]);
   };
 
   const handleDownload = async () => {
-    const compressedFiles = await Promise.all(
-      selectedFiles.map((file) =>
-        imageCompression(file, {
-          maxSizeMB: 50,
-          maxWidthOrHeight: 1920,
-        })
-      )
-    );
-
-    compressedFiles.forEach((compressedFile, index) => {
-      const downloadLink = document.createElement("a");
-      downloadLink.href = URL.createObjectURL(compressedFile);
-      downloadLink.download = `tinyimg-${compressedFile}-${index}.jpg`;
-      downloadLink.click();
-    });
+    console.log("handleDownload" + selectedFiles[0]);
   };
 
-  const dragEnter = (event: React.DragEvent<HTMLElement>) => {
+  const dragEnter = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     setIsDragging(true);
   };
 
-  const dragLeave = (event: React.DragEvent<HTMLElement>) => {
+  const dragLeave = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     setIsDragging(false);
   };
 
-  const onDropCapture = (event: React.DragEvent<HTMLElement>) => {
+  const onDropCapture = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     setIsDragging(false);
   };
@@ -87,8 +71,6 @@ export const Dropzone = () => {
     setSelectedFiles(newSelectedFiles);
   };
 
-  console.log(matches);
-
   return (
     <>
       <main
@@ -112,17 +94,17 @@ export const Dropzone = () => {
           priority
         />
         <input
-          onChange={handleFileSelect}
+          onChange={(e) => handleFileSelect(e)}
           type="file"
           multiple
-          className="hidden"
+          className="opacity-0 z-0 w-full h-full absolute cursor-pointer"
           itemType="image/png"
         />
         <h3 className="font-semibold text-slate-700 text-sm md:text-base mt-5 text-center w-11/12">
           Drop your WebP, PNG or JPEG files here!
         </h3>
         <p className="text-slate-400 text-xs md:text-sm mt-1">
-          Up to 50 image, max 10 MB each.
+          Up to 25 image, max 100 MB each.
         </p>
       </main>
 
@@ -136,15 +118,11 @@ export const Dropzone = () => {
       >
         {selectedFiles.map((item, index) => (
           <ItemDropzone
-            enableCompression={enableCompression}
             index={index}
             key={`${item.name}-${index}`}
             file={item}
             deleteFile={deleteFile}
             isMobile={matches}
-            updateSelectedFiles={updateSelectedFiles}
-            isLast={index === selectedFiles.length - 1}
-            setEnableCompression={setEnableCompression}
           />
         ))}
       </motion.div>

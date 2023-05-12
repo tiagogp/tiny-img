@@ -1,4 +1,4 @@
-import React, { FC, useEffect, useMemo } from "react";
+import React, { FC, useMemo } from "react";
 import { motion } from "framer-motion";
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import imageCompression from "browser-image-compression";
@@ -6,29 +6,11 @@ import imageCompression from "browser-image-compression";
 interface ItemDropzoneProps {
   index: number;
   file: File;
-  updateSelectedFiles(
-    index: number,
-    newValues: {
-      newFile: File;
-    }
-  ): void;
   deleteFile(index: number): void;
   isMobile: boolean;
-  enableCompression: boolean;
-  setEnableCompression: (value: boolean) => void;
-  isLast: boolean;
 }
 
-export const ItemDropzone: FC<ItemDropzoneProps> = ({
-  file,
-  index,
-  updateSelectedFiles,
-  isMobile,
-  enableCompression,
-  setEnableCompression,
-  isLast,
-}) => {
-  const [isLoaded, setIsLoaded] = React.useState(false);
+const ItemDropzone: FC<ItemDropzoneProps> = ({ file, index, isMobile }) => {
   const [newFile, setNewFile] = React.useState<File | null>(null);
 
   const { name, size } = file;
@@ -46,29 +28,21 @@ export const ItemDropzone: FC<ItemDropzoneProps> = ({
   };
 
   useMemo(() => {
-    if (isLast) {
-      setEnableCompression(true);
-    }
-  }, [isLast, setEnableCompression]);
-
-  useEffect(() => {
-    if (enableCompression) {
+    const time = setTimeout(() => {
       (async () => {
-        setIsLoaded(true);
         const compressedFiles = await imageCompression(file, {
           maxSizeMB: file.size / 1000000,
           maxWidthOrHeight: 1920,
         });
-        setIsLoaded(false);
 
         setNewFile(compressedFiles);
-
-        updateSelectedFiles(index, {
-          newFile: compressedFiles,
-        });
       })();
-    }
-  }, [enableCompression]);
+    }, 700 + (100 * index + 1));
+
+    return () => {
+      clearTimeout(time);
+    };
+  }, []);
 
   return (
     <motion.div
@@ -89,7 +63,9 @@ export const ItemDropzone: FC<ItemDropzoneProps> = ({
       key={`${name}-${index}`}
       className="text-slate-400 text-sm flex flex-wrap items-center justify-between w-full border-b py-4 last-of-type:border-b-0 border-slate-100 h-24 sm:h-14 gap-y-2"
     >
-      <p className="w-[10rem] truncate ">{name}</p>
+      <p className="w-[10rem] truncate ">
+        {index + 1}. {name}
+      </p>
       <div className="flex items-center gap-4 justify-start ">
         <p
           className={`${
@@ -98,7 +74,6 @@ export const ItemDropzone: FC<ItemDropzoneProps> = ({
         >
           {convertSizeFileAndUnit(size)}
         </p>
-
         {newFile && (
           <>
             {">"}
@@ -108,7 +83,7 @@ export const ItemDropzone: FC<ItemDropzoneProps> = ({
           </>
         )}
       </div>
-      {isLoaded && (
+      {!newFile && (
         <div className="flex items-center">
           <div className="w-4 h-4 rounded-full bg-slate-400 animate-pulse mr-2"></div>
           <p>Compressing...</p>
@@ -127,3 +102,5 @@ export const ItemDropzone: FC<ItemDropzoneProps> = ({
     </motion.div>
   );
 };
+
+export default ItemDropzone;
