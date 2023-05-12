@@ -17,6 +17,11 @@ export const Dropzone = () => {
 
   const matches = useMediaQuery("(max-width: 480px)");
 
+  const clearFiles = useCallback(() => {
+    setSelectedFiles([]);
+    setNewFiles([]);
+  }, []);
+
   const handleFileSelect = (event: any) => {
     const files = Array.from(event.target.files as File[]).filter((item) =>
       verifyFile(item as File)
@@ -110,7 +115,7 @@ export const Dropzone = () => {
         onDragLeave={dragLeave}
         onDrop={handleFileDrop}
         onDragOver={(event) => event.preventDefault()}
-        className={`relative transition-all select-none flex flex-col justify-center items-center w-11/12 max-w-screen-lg py-4 sm:h-80 border rounded border-dashed ${
+        className={`relative transition-all duration-300 select-none flex flex-col justify-center items-center w-11/12 max-w-screen-lg py-4 sm:h-80 border rounded border-dashed ${
           isDragging
             ? "border-blue-400 bg-blue-100/50"
             : "border-slate-300 bg-slate-50/50"
@@ -145,7 +150,7 @@ export const Dropzone = () => {
           opacity: selectedFiles.length > 0 ? 1 : 0,
         }}
         transition={{ duration: 1, type: "spring", bounce: 0 }}
-        className={`transition-all flex flex-col  w-11/12 max-w-screen-lg mt-5 border rounded px-4 max-h-[20  0px] xs:max-h-[300px] overflow-auto relative bg-white z-10`}
+        className={`transition-all flex flex-col  w-11/12 max-w-screen-lg mt-5 border rounded px-4 max-h-[200px] xs:max-h-[300px] overflow-auto relative bg-white z-10`}
       >
         {selectedFiles.map((item, index) => (
           <ItemDropzone
@@ -160,14 +165,16 @@ export const Dropzone = () => {
       </motion.div>
       {selectedFiles.length === newFiles.length && (
         <motion.div
-          initial={{ opacity: 0, y: -30, height: 48 }}
+          initial={{
+            opacity: 0,
+            height: 0,
+          }}
           animate={{
             opacity: reduceTotalValue > 0 ? 1 : 0,
-            y: reduceTotalValue > 0 ? 0 : -30,
             height: reduceTotalValue > 0 ? 48 : 0,
           }}
           transition={{
-            duration: 1,
+            duration: 0.5,
             type: "spring",
             bounce: 0,
           }}
@@ -181,33 +188,52 @@ export const Dropzone = () => {
               from={0}
               to={Number(reduceTotalValue.toFixed(2))}
               duration={1}
-              delay={reduceTotalValue > 0 ? 0.5 : 0}
             />
             %
           </div>
         </motion.div>
       )}
       {selectedFiles.length > 0 && (
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{
-            opacity: selectedFiles.length > 0 ? 1 : 0,
-          }}
-          transition={{ duration: 0.5, type: "spring", bounce: 0 }}
-          onClick={handleDownload}
-          className={`disabled:bg-slate-200 disabled:text-gray-400 transition-all mt-3 flex items-center justify-center rounded font-medium py-2 px-6 bg-black hover:bg-black/90 text-white active:scale-[.97] active:translate-y-0.5
+        <div className="flex gap-2 flex-wrap">
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{
+              opacity: selectedFiles.length > 0 ? 1 : 0,
+            }}
+            transition={{ duration: 0.5, type: "spring", bounce: 0 }}
+            onClick={handleDownload}
+            className={`disabled:bg-slate-200 disabled:text-gray-400 transition-all mt-3 flex items-center justify-center rounded font-medium py-2 px-6 bg-black hover:bg-black/90 text-white active:scale-[.97] active:translate-y-0.5
             `}
-          disabled={
-            selectedFiles.length === 0 ||
-            newFiles.length !== selectedFiles.length
-          }
-        >
-          {selectedFiles.length === 0 ||
-            (newFiles.length !== selectedFiles.length && (
-              <Spinner className="mr-1" />
-            ))}
-          Download All
-        </motion.button>
+            disabled={
+              selectedFiles.length === 0 ||
+              newFiles.length !== selectedFiles.length
+            }
+          >
+            {selectedFiles.length === 0 ||
+              (newFiles.length !== selectedFiles.length && (
+                <Spinner className="mr-1" />
+              ))}
+            Download All
+          </motion.button>
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{
+              opacity: selectedFiles.length > 0 ? 1 : 0,
+            }}
+            transition={{ duration: 0.5, type: "spring", bounce: 0 }}
+            onClick={clearFiles}
+            className={`disabled:bg-slate-200 disabled:text-gray-400 transition-all mt-3 flex items-center justify-center rounded font-medium py-2 px-6 border-2 disabled:border-0 border-black active:scale-[.97] active:translate-y-0.5
+            `}
+            disabled={
+              selectedFiles.length === 0 ||
+              newFiles.length !== selectedFiles.length
+            }
+          >
+            {selectedFiles.length === 0 ||
+              (newFiles.length !== selectedFiles.length && <Spinner />)}
+            Clear All
+          </motion.button>
+        </div>
       )}
     </>
   );
