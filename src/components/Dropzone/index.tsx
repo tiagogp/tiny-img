@@ -115,7 +115,7 @@ export const Dropzone = () => {
         onDragOver={(event) => event.preventDefault()}
         className={`relative transition-all duration-300 select-none flex flex-col justify-center items-center w-11/12 max-w-screen-lg py-4 sm:h-80 border rounded border-dashed ${
           isDragging
-            ? "border-blue-400 bg-blue-100/50"
+            ? "border-blue-400 bg-blue-100"
             : "border-slate-400 bg-slate-100"
         }`}
       >
@@ -127,7 +127,9 @@ export const Dropzone = () => {
           className="h-20 w-20 md:w-auto md:h-auto"
           priority
         />
+
         <input
+          aria-label="file-input"
           onChange={(e) => handleFileSelect(e)}
           type="file"
           multiple
