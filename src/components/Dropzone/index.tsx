@@ -90,8 +90,6 @@ export const Dropzone = () => {
     });
   }, []);
 
-  console.log(newFiles.length, selectedFiles.length);
-
   const reduceNewFilesValue = newFiles.reduce((acc, cur) => acc + cur.size, 0);
 
   const reduceSelectedFilesValue = selectedFiles.reduce(
