@@ -2,12 +2,13 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import React, { DragEvent, useCallback, useState } from "react";
+import React, { DragEvent, useCallback, useMemo, useState } from "react";
 import { verifyFile } from "../../utils/verifyFile";
 import ItemDropzone from "./ItemDropzone";
 import useMediaQuery from "@/hooks/useMediaQuery";
 import JSZip from "jszip";
 import { Spinner } from "../Spinner";
+import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 
 export const Dropzone = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -72,26 +73,32 @@ export const Dropzone = () => {
     setSelectedFiles(newSelectedFiles);
   };
 
-  const updateNewFiles = useCallback(
-    (file: File) => {
-      const newSelectedFiles = [...selectedFiles];
-      const values = newSelectedFiles.find(
-        (oldValues) => oldValues.name === file.name
-      );
-
-      if (values) {
-        const correctNewFile = newSelectedFiles.filter((oldValues, i) =>
-          oldValues.name === file.name ? { ...oldValues, ...values } : oldValues
-        );
-
-        setNewFiles(correctNewFile);
-        return;
+  const updateNewFiles = useCallback((file: File) => {
+    setNewFiles((prev) => {
+      const oldValueIndex = prev.findIndex((item) => item.name === file.name);
+      if (oldValueIndex !== -1) {
+        prev.splice(oldValueIndex, 1);
+        return prev;
       }
 
-      setNewFiles((prev) => [...prev, file]);
-    },
-    [selectedFiles]
+      return [...prev, file];
+    });
+  }, []);
+
+  const reduceNewFilesValue = newFiles.reduce((acc, cur) => acc + cur.size, 0);
+
+  const reduceSelectedFilesValue = selectedFiles.reduce(
+    (acc, cur) => acc + cur.size,
+    0
   );
+
+  const reduceTotalValue = useMemo(() => {
+    if (reduceSelectedFilesValue === 0 || reduceNewFilesValue === 0) {
+      return 0;
+    }
+
+    return 100 - (reduceNewFilesValue / reduceSelectedFilesValue) * 100;
+  }, [reduceNewFilesValue, reduceSelectedFilesValue]);
 
   return (
     <>
@@ -136,7 +143,7 @@ export const Dropzone = () => {
           opacity: selectedFiles.length > 0 ? 1 : 0,
         }}
         transition={{ duration: 0.5, type: "spring", bounce: 0 }}
-        className={`transition-all flex flex-col  w-11/12 max-w-screen-lg mt-5 border rounded  px-4 max-h-[200px] xs:max-h-[300px] overflow-auto`}
+        className={`transition-all flex flex-col  w-11/12 max-w-screen-lg mt-5 border rounded  px-4 max-h-[180px] xs:max-h-[300px] overflow-auto relative bg-white z-10`}
       >
         {selectedFiles.map((item, index) => (
           <ItemDropzone
@@ -149,7 +156,29 @@ export const Dropzone = () => {
           />
         ))}
       </motion.div>
-
+      {reduceTotalValue > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -30 }}
+          animate={{
+            opacity: reduceTotalValue > 0 ? 1 : 0,
+            y: reduceTotalValue > 0 ? 0 : -30,
+          }}
+          transition={{
+            duration: 1,
+            type: "spring",
+            bounce: 0,
+            delay: reduceTotalValue > 0 ? 0.5 : 0,
+          }}
+          className="flex items-center justify-center gap-4 py-3 px-4 bg-gray-100 w-11/12 max-w-screen-lg rounded-b -mt-1"
+        >
+          <p className="text-slate-400 text-xs md:text-sm">
+            Tinyimg will reduce the size by
+          </p>
+          <p className="text-slate-700 font-bold text-sm md:text-sm">
+            {reduceTotalValue.toFixed(2)}%
+          </p>
+        </motion.div>
+      )}
       {selectedFiles.length > 0 && (
         <motion.button
           initial={{ opacity: 0 }}
@@ -158,7 +187,7 @@ export const Dropzone = () => {
           }}
           transition={{ duration: 0.5, type: "spring", bounce: 0 }}
           onClick={handleDownload}
-          className={`disabled:bg-slate-200 disabled:text-gray-400 transition-all mt-5 flex items-center justify-center rounded font-medium py-2 px-6 bg-black hover:bg-black/90 text-white active:scale-[.97] active:translate-y-0.5
+          className={`disabled:bg-slate-200 disabled:text-gray-400 transition-all mt-3 flex items-center justify-center rounded font-medium py-2 px-6 bg-black hover:bg-black/90 text-white active:scale-[.97] active:translate-y-0.5
             `}
           disabled={
             selectedFiles.length === 0 ||
