@@ -116,7 +116,7 @@ export const Dropzone = () => {
         className={`relative transition-all duration-300 select-none flex flex-col justify-center items-center w-11/12 max-w-screen-lg py-4 sm:h-80 border rounded border-dashed ${
           isDragging
             ? "border-blue-400 bg-blue-100/50"
-            : "border-slate-300 bg-slate-50/50"
+            : "border-slate-400 bg-slate-100"
         }`}
       >
         <Image
@@ -133,11 +133,12 @@ export const Dropzone = () => {
           multiple
           className="opacity-0 z-0 w-full h-full absolute cursor-pointer"
           itemType="image/png"
+          name="file"
         />
         <h3 className="font-semibold text-slate-700 text-sm md:text-base mt-5 text-center w-11/12">
           Drop your WebP, PNG or JPEG files here!
         </h3>
-        <p className="text-slate-400 text-xs md:text-sm mt-1">
+        <p className="text-slate-500 text-xs md:text-sm mt-1">
           Up to 30 image, max 100 MB each.
         </p>
       </main>
