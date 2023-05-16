@@ -14,16 +14,27 @@
 }
 
 ::-webkit-scrollbar-track {
-  margin: 10px;
   box-sizing: content-box;
-  border-radius: 1rem;
+  border-radius: 0.25rem;
 }
 
 ::-webkit-scrollbar-thumb {
   background-color: #d0d3d3;
-  border-radius: 1rem;
+  border-radius: 0.25rem;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background-color: #ccc;
+}
+
+@media screen and (max-width: 1080px) {
+  html {
+    font-size: 93.75%; /* 15px */
+  }
+}
+
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 87.5%; /* 14px */
+  }
 }
