@@ -1,4 +1,4 @@
-import React, { FC, memo, useMemo } from "react";
+import React, { FC, memo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import imageCompression from "browser-image-compression";
@@ -33,7 +33,7 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
     }
   };
 
-  useMemo(() => {
+  useEffect(() => {
     const time = setTimeout(() => {
       (async () => {
         const compressedFiles = await imageCompression(file, {
