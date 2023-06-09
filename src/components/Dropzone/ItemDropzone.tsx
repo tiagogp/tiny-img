@@ -11,6 +11,21 @@ interface ItemDropzoneProps {
   setNewFiles(files: File): void;
 }
 
+function getFileDimensions(
+  file: File
+): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      resolve({ width: img.width, height: img.height });
+    };
+    img.onerror = () => {
+      reject(new Error("Failed to load the image file."));
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 const ItemDropzone: FC<ItemDropzoneProps> = ({
   file,
   index,
@@ -36,9 +51,13 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   useEffect(() => {
     const time = setTimeout(() => {
       (async () => {
+        const result = await getFileDimensions(file);
+
+        const minorDimension = Math.min(result.width, result.height);
+
         const compressedFiles = await imageCompression(file, {
-          maxSizeMB: file.size / 1000000,
-          maxWidthOrHeight: 1920,
+          maxSizeMB: (file.size / 1000000) * 0.8,
+          maxWidthOrHeight: minorDimension <= 1920 ? minorDimension : 1920,
         });
 
         setNewFiles(compressedFiles);
