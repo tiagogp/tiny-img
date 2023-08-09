@@ -44,8 +44,8 @@ export const Dropzone = () => {
     const zip = new JSZip();
 
     await Promise.all(
-      newFiles.map(async (file, index) => {
-        zip.file(`${file.name}-${index}.jpg`, file);
+      newFiles.map(async (file) => {
+        zip.file(file.name, file);
       })
     );
 
@@ -114,8 +114,8 @@ export const Dropzone = () => {
         onDrop={handleFileDrop}
         onDragOver={(event) => event.preventDefault()}
         className={`relative transition-all duration-300 select-none flex flex-col justify-center items-center w-11/12 max-w-screen-lg py-4 sm:h-80 border rounded border-dashed ${isDragging
-            ? "border-blue-400 bg-blue-100"
-            : "border-slate-400 bg-slate-100"
+          ? "border-blue-400 bg-blue-100"
+          : "border-slate-400 bg-slate-100"
           }`}
       >
         <Image
