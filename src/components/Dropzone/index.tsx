@@ -27,7 +27,7 @@ export const Dropzone = () => {
       verifyFile(item as File)
     );
 
-    setSelectedFiles([...selectedFiles, ...files.slice(0, 30)]);
+    setSelectedFiles([...selectedFiles, ...files]);
   };
 
   const handleFileDrop = (event: DragEvent<HTMLElement>) => {
@@ -37,7 +37,7 @@ export const Dropzone = () => {
       verifyFile(item as File)
     );
 
-    setSelectedFiles([...selectedFiles, ...files.slice(0, 30)]);
+    setSelectedFiles([...selectedFiles, ...files]);
   };
 
   const handleDownload = async () => {
@@ -113,11 +113,10 @@ export const Dropzone = () => {
         onDragLeave={dragLeave}
         onDrop={handleFileDrop}
         onDragOver={(event) => event.preventDefault()}
-        className={`relative transition-all duration-300 select-none flex flex-col justify-center items-center w-11/12 max-w-screen-lg py-4 sm:h-80 border rounded border-dashed ${
-          isDragging
+        className={`relative transition-all duration-300 select-none flex flex-col justify-center items-center w-11/12 max-w-screen-lg py-4 sm:h-80 border rounded border-dashed ${isDragging
             ? "border-blue-400 bg-blue-100"
             : "border-slate-400 bg-slate-100"
-        }`}
+          }`}
       >
         <Image
           src="/upload.svg"
