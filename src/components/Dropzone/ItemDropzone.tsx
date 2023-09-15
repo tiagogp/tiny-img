@@ -34,10 +34,6 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   setNewFiles,
   actualItem
 }) => {
-
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true });
-
   const { name, size } = file;
   const handleDownload = async () => {
     if (actualItem) {
@@ -74,20 +70,7 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   }, []);
 
   return (
-    <motion.div
-      ref={ref}
-      initial={{
-
-        height: 0,
-      }}
-      animate={{
-        opacity: isInView ? 1 : 0,
-        height: isInView ? isMobile ? 78 : 56 : 0
-      }}
-      transition={{
-        duration: 1,
-        type: "tween",
-      }}
+    <div
       className="text-slate-400 text-sm flex flex-wrap items-center justify-between w-full border-b py-4 last-of-type:border-b-0 border-slate-100 h-24 sm:h-14 gap-y-2"
     >
       <p className="w-[10rem] truncate ">
@@ -125,7 +108,7 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
           </button>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 
