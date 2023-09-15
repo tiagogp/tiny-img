@@ -8,7 +8,7 @@ interface ItemDropzoneProps {
   file: File;
   deleteFile(index: number): void;
   isMobile: boolean;
-  setNewFiles(files: File): void;
+  setNewFiles: (file: File, index: number) => void;
   actualItem: File
 }
 
@@ -57,18 +57,18 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
         const minorDimension = Math.min(result.width, result.height);
 
         const compressedFiles = await imageCompression(file, {
-          maxSizeMB: (file.size / 1000000) * 0.8,
-          maxWidthOrHeight: minorDimension <= 900 ? minorDimension : 900,
+          maxWidthOrHeight: minorDimension < 1080 ? minorDimension : 1080,
+          alwaysKeepResolution: true
         });
 
-        setNewFiles(compressedFiles);
+        setNewFiles(compressedFiles, index);
       })();
     }, (100 * index + 1));
 
     return () => {
       clearTimeout(time);
     };
-  }, []);
+  }, [file, index, setNewFiles]);
 
   return (
     <div

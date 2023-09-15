@@ -77,16 +77,8 @@ export const Dropzone = () => {
     setSelectedFiles(newSelectedFiles);
   };
 
-  const updateNewFiles = useCallback((file: File) => {
-    setNewFiles((prev) => {
-      const oldValueIndex = prev.findIndex((item) => item.name === file.name);
-      if (oldValueIndex !== -1) {
-        prev.splice(oldValueIndex, 1);
-        return prev;
-      }
-
-      return [...prev, file];
-    });
+  const updateNewFiles = useCallback((file: File, index: number) => {
+    setNewFiles((prev) => [...prev, file]);
   }, []);
 
   const reduceNewFilesValue = newFiles.reduce((acc, cur) => acc + cur.size, 0);
