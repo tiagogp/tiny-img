@@ -34,6 +34,7 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   setNewFiles,
   actualItem
 }) => {
+
   const { name, size } = file;
   const handleDownload = async () => {
     if (actualItem) {
@@ -49,19 +50,24 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   };
 
   useEffect(() => {
-    (async () => {
-      const result = await getFileDimensions(file);
+    const time = setTimeout(() => {
+      (async () => {
+        const result = await getFileDimensions(file);
 
-      const minorDimension = Math.min(result.width, result.height);
+        const minorDimension = Math.min(result.width, result.height);
 
-      const compressedFiles = await imageCompression(file, {
-        maxSizeMB: (file.size / 1000000) * 0.8,
-        maxWidthOrHeight: minorDimension <= 900 ? minorDimension : 900,
-      });
+        const compressedFiles = await imageCompression(file, {
+          maxSizeMB: (file.size / 1000000) * 0.8,
+          maxWidthOrHeight: minorDimension <= 900 ? minorDimension : 900,
+        });
 
-      setNewFiles(compressedFiles);
-    })();
+        setNewFiles(compressedFiles);
+      })();
+    }, (100 * index + 1));
 
+    return () => {
+      clearTimeout(time);
+    };
   }, []);
 
   return (

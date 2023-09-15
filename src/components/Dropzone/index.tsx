@@ -7,7 +7,6 @@ import { verifyFile } from "../../utils/verifyFile";
 import ItemDropzone from "./ItemDropzone";
 import useMediaQuery from "@/hooks/useMediaQuery";
 import JSZip from "jszip";
-import { Spinner } from "../Spinner";
 import { Counter } from "../Counter";
 
 export const Dropzone = () => {
@@ -140,8 +139,9 @@ export const Dropzone = () => {
           Drop your WebP, PNG or JPEG files here!
         </h3>
         <p className="text-gray-600 text-xs md:text-sm mt-1">
-          Up to 30 image, max 100 MB each.
+          Up to 100 image, max 100 MB each.
         </p>
+
       </main>
 
       <motion.div
@@ -164,6 +164,8 @@ export const Dropzone = () => {
           />
         ))}
       </motion.div>
+
+
       {selectedFiles.length === newFiles.length && (
         <motion.div
           initial={{
@@ -194,6 +196,30 @@ export const Dropzone = () => {
           </div>
         </motion.div>
       )}
+
+      {
+        selectedFiles.length > 0 && newFiles.length <= selectedFiles.length && (
+          <div className='flex items-start w-11/12 max-w-screen-lg '>
+            <motion.div
+              initial={{
+                opacity: 0,
+                height: 0,
+                width: 0,
+              }}
+              animate={{
+                opacity: reduceTotalValue > 0 ? 1 : 0,
+                height: reduceTotalValue > 0 ? 16 : 0,
+                width: `${(newFiles.length / selectedFiles.length) * 100}%`,
+              }}
+              transition={{
+                duration: 0.5,
+                type: "spring",
+                bounce: 0,
+              }}
+              className='h-1 bg-blue-400 rounded-b-md -translate-y-1 -z-10' />
+          </div>
+        )
+      }
       {selectedFiles.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           <motion.button
@@ -210,10 +236,6 @@ export const Dropzone = () => {
               newFiles.length !== selectedFiles.length
             }
           >
-            {selectedFiles.length === 0 ||
-              (newFiles.length !== selectedFiles.length && (
-                <Spinner className="mr-1" />
-              ))}
             Download All
           </motion.button>
           <motion.button
@@ -230,8 +252,7 @@ export const Dropzone = () => {
               newFiles.length !== selectedFiles.length
             }
           >
-            {selectedFiles.length === 0 ||
-              (newFiles.length !== selectedFiles.length && <Spinner />)}
+
             Clear All
           </motion.button>
         </div>
