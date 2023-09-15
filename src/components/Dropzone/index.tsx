@@ -160,6 +160,7 @@ export const Dropzone = () => {
             deleteFile={deleteFile}
             isMobile={matches}
             setNewFiles={updateNewFiles}
+            actualItem={newFiles[index]}
           />
         ))}
       </motion.div>

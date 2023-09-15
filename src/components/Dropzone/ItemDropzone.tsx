@@ -1,5 +1,5 @@
-import React, { FC, memo, useEffect } from "react";
-import { motion } from "framer-motion";
+import React, { FC, memo, useEffect, useRef } from "react";
+import { motion, useInView } from "framer-motion";
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import imageCompression from "browser-image-compression";
 
@@ -9,6 +9,7 @@ interface ItemDropzoneProps {
   deleteFile(index: number): void;
   isMobile: boolean;
   setNewFiles(files: File): void;
+  actualItem: File
 }
 
 function getFileDimensions(
@@ -31,15 +32,18 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   index,
   isMobile,
   setNewFiles,
+  actualItem
 }) => {
-  const [newFile, setNewFile] = React.useState<File | null>(null);
+
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true });
 
   const { name, size } = file;
   const handleDownload = async () => {
-    if (newFile) {
-      const { name, type } = newFile;
+    if (actualItem) {
+      const { name, type } = actualItem;
       const downloadLink = document.createElement("a");
-      downloadLink.href = URL.createObjectURL(newFile);
+      downloadLink.href = URL.createObjectURL(actualItem);
       downloadLink.download = `tinyimg-${name.replace(
         `.${type.split("/")[1]}`,
         ""
@@ -57,11 +61,10 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
 
         const compressedFiles = await imageCompression(file, {
           maxSizeMB: (file.size / 1000000) * 0.8,
-          maxWidthOrHeight: minorDimension <= 1920 ? minorDimension : 1920,
+          maxWidthOrHeight: minorDimension <= 900 ? minorDimension : 900,
         });
 
         setNewFiles(compressedFiles);
-        setNewFile(compressedFiles);
       })();
     }, 700 + (100 * index + 1));
 
@@ -72,21 +75,19 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
 
   return (
     <motion.div
+      ref={ref}
       initial={{
-        opacity: 0,
+
         height: 0,
       }}
       animate={{
-        opacity: 1,
-        height: isMobile ? 78 : 56,
+        opacity: isInView ? 1 : 0,
+        height: isInView ? isMobile ? 78 : 56 : 0
       }}
       transition={{
-        duration: 0.5,
-        delay: 0.05 * index,
-        type: "spring",
-        bounce: 0,
+        duration: 1,
+        type: "tween",
       }}
-      key={`${name}-${index}`}
       className="text-slate-400 text-sm flex flex-wrap items-center justify-between w-full border-b py-4 last-of-type:border-b-0 border-slate-100 h-24 sm:h-14 gap-y-2"
     >
       <p className="w-[10rem] truncate ">
@@ -94,28 +95,27 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
       </p>
       <div className="flex items-center gap-4 justify-start ">
         <p
-          className={`${
-            newFile && "line-through text-xs opacity-50"
-          } transition-all duration-500 ease-in-out`}
+          className={`${actualItem && "line-through text-xs opacity-50"
+            } transition-all duration-500 ease-in-out`}
         >
           {convertSizeFileAndUnit(size)}
         </p>
-        {newFile && (
+        {actualItem && (
           <>
             {">"}
             <p className="text-green-400 text-xs">
-              {convertSizeFileAndUnit(newFile.size)}
+              {convertSizeFileAndUnit(actualItem.size)}
             </p>
           </>
         )}
       </div>
-      {!newFile && (
+      {!actualItem && (
         <div className="flex items-center">
           <div className="w-4 h-4 rounded-full bg-slate-400 animate-pulse mr-2"></div>
           <p>Compressing...</p>
         </div>
       )}
-      {newFile && (
+      {actualItem && (
         <div className="flex items-center gap-4">
           <button
             onClick={handleDownload}
