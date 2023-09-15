@@ -49,24 +49,19 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   };
 
   useEffect(() => {
-    const time = setTimeout(() => {
-      (async () => {
-        const result = await getFileDimensions(file);
+    (async () => {
+      const result = await getFileDimensions(file);
 
-        const minorDimension = Math.min(result.width, result.height);
+      const minorDimension = Math.min(result.width, result.height);
 
-        const compressedFiles = await imageCompression(file, {
-          maxSizeMB: (file.size / 1000000) * 0.8,
-          maxWidthOrHeight: minorDimension <= 900 ? minorDimension : 900,
-        });
+      const compressedFiles = await imageCompression(file, {
+        maxSizeMB: (file.size / 1000000) * 0.8,
+        maxWidthOrHeight: minorDimension <= 900 ? minorDimension : 900,
+      });
 
-        setNewFiles(compressedFiles);
-      })();
-    }, 700 + (100 * index + 1));
+      setNewFiles(compressedFiles);
+    })();
 
-    return () => {
-      clearTimeout(time);
-    };
   }, []);
 
   return (
