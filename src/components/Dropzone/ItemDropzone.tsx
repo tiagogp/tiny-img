@@ -63,12 +63,12 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
 
         setNewFiles(compressedFiles);
       })();
-    }, (100 * index + 1));
+    }, (index * 70));
 
     return () => {
       clearTimeout(time);
     };
-  }, []);
+  }, [file, index, setNewFiles]);
 
   return (
     <div
@@ -113,4 +113,4 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   );
 };
 
-export default memo(ItemDropzone);
+export default ItemDropzone;
