@@ -44,7 +44,7 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
       downloadLink.download = `tinyimg-${name.replace(
         `.${type.split("/")[1]}`,
         ""
-      )}-${index}.jpg`;
+      )}`;
       downloadLink.click();
     }
   };
