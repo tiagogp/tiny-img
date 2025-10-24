@@ -1,40 +1,22 @@
-import React, { FC, memo, useEffect, useRef } from "react";
-import { motion, useInView } from "framer-motion";
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
-import imageCompression from "browser-image-compression";
+import { FC } from "react";
 
 interface ItemDropzoneProps {
   index: number;
   file: File;
   deleteFile(index: number): void;
   isMobile: boolean;
-  setNewFiles: (file: File, index: number) => void;
-  actualItem: File
-}
-
-function getFileDimensions(
-  file: File
-): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      resolve({ width: img.width, height: img.height });
-    };
-    img.onerror = () => {
-      reject(new Error("Failed to load the image file."));
-    };
-    img.src = URL.createObjectURL(file);
-  });
+  actualItem?: File;
+  isProcessing?: boolean;
 }
 
 const ItemDropzone: FC<ItemDropzoneProps> = ({
   file,
   index,
   isMobile,
-  setNewFiles,
-  actualItem
+  actualItem,
+  isProcessing = false,
 }) => {
-
   const { name, size } = file;
   const handleDownload = async () => {
     if (actualItem) {
@@ -49,38 +31,16 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
     }
   };
 
-  useEffect(() => {
-    const time = setTimeout(() => {
-      (async () => {
-        const result = await getFileDimensions(file);
-
-        const minorDimension = Math.min(result.width, result.height);
-
-        const compressedFiles = await imageCompression(file, {
-          maxWidthOrHeight: minorDimension < 1080 ? minorDimension : 1080,
-          alwaysKeepResolution: true
-        });
-
-        setNewFiles(compressedFiles, index);
-      })();
-    }, (index * 70));
-
-    return () => {
-      clearTimeout(time);
-    };
-  }, [file, index, setNewFiles]);
-
   return (
-    <div
-      className="text-slate-400 text-sm flex flex-wrap items-center justify-between w-full border-b py-4 last-of-type:border-b-0 border-slate-100 h-24 sm:h-14 gap-y-2"
-    >
+    <div className="text-slate-400 text-sm flex flex-wrap items-center justify-between w-full border-b py-4 last-of-type:border-b-0 border-slate-100 h-24 sm:h-14 gap-y-2">
       <p className="w-[10rem] truncate ">
         {index + 1}. {name}
       </p>
       <div className="flex items-center gap-4 justify-start ">
         <p
-          className={`${actualItem && "line-through text-xs opacity-50"
-            } transition-all duration-500 ease-in-out`}
+          className={`${
+            actualItem && "line-through text-xs opacity-50"
+          } transition-all duration-500 ease-in-out`}
         >
           {convertSizeFileAndUnit(size)}
         </p>
@@ -93,10 +53,16 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
           </>
         )}
       </div>
-      {!actualItem && (
+      {!actualItem && isProcessing && (
         <div className="flex items-center">
           <div className="w-4 h-4 rounded-full bg-slate-400 animate-pulse mr-2"></div>
           <p>Compressing...</p>
+        </div>
+      )}
+      {!actualItem && !isProcessing && (
+        <div className="flex items-center">
+          <div className="w-4 h-4 rounded-full bg-gray-300 mr-2"></div>
+          <p>Waiting...</p>
         </div>
       )}
       {actualItem && (
