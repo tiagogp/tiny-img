@@ -1,8 +1,8 @@
 "use client";
-import { animate } from "framer-motion";
+import { animate } from "motion/react";
 import { useEffect, useState } from "react";
 
-interface CounterProps extends React.HTMLAttributes<HTMLParagraphElement> {
+interface CounterProps extends React.HTMLAttributes<HTMLSpanElement> {
   from: number;
   to: number;
   duration: number;
@@ -28,5 +28,5 @@ export function Counter({ from, to, duration, delay, ...rest }: CounterProps) {
     };
   }, [delay, duration, from, to]);
 
-  return <p {...rest}>{count}</p>;
+  return <span {...rest}>{count}</span>;
 }

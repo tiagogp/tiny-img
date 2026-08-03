@@ -1,13 +1,13 @@
 "use client";
 
 import React, { FC } from "react";
-interface SpinnerProps extends React.HTMLAttributes<HTMLDivElement> {}
+type SpinnerProps = React.HTMLAttributes<HTMLDivElement>;
 
 export const Spinner: FC<SpinnerProps> = (props) => {
   return (
     <div {...props}>
       <svg
-        className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-500"
+        className="animate-spin -ml-1 mr-3 h-5 w-5 text-muted"
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
         viewBox="0 0 24 24"
