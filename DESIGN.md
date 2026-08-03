@@ -152,9 +152,47 @@ stock library.
    `--color-bg` as text. Use their `-deep` variants.
 3. Do not use color as the sole carrier of meaning. Errors get an icon and text; selected
    tags get a fill *and* a weight change.
-4. Dark mode is out of scope for v1. The design depends on a paper-white canvas. If it is
-   added later, invert to `--color-ink` bg with `#F2EFE7` text and desaturate accents by
-   ~8% to hold contrast.
+4. Every color in the interface is reached through a token, never a literal. That is what
+   lets §2.6 re-point the whole palette without touching a component.
+
+### 2.6 Dark theme
+
+Selected by `:root[data-theme="dark"]`, and only ever by that: a blocking script resolves
+the stored choice — or `prefers-color-scheme` when there is none — before the first paint
+and writes a concrete `light` or `dark` onto the root. CSS never reads the media query
+itself, so the palette lives in one block instead of two, and a page with no script runs
+light.
+
+**The ink family shifts, it does not flip.** A dark surface is dark in both themes, so
+`--color-ink`, `--color-ink-soft`, `--color-text-inverse` and their neighbours keep their
+meaning: the nav pill and the footer stay the slabs they were, and every `text-inverse`
+sitting on them stays legible without a second set of rules. What flips is the page.
+
+| Token | Light | Dark | Note |
+|---|---|---|---|
+| `--color-bg` | `#FBFAF6` | `#100F0D` | Goes *below* the ink family so the pill and footer still read as lifted. |
+| `--color-surface` | `#F2EFE7` | `#181611` | |
+| `--color-surface-raised` | `#FFFFFF` | `#201E18` | |
+| `--color-ink` | `#1A1917` | `#23211C` | Shifted up just enough to clear the new canvas. |
+| `--color-ink-soft` | `#2C2A26` | `#2E2B25` | |
+| `--color-text-primary` | `#1A1917` | `#F4F1E8` | 17.0:1 on dark bg ✅ AAA |
+| `--color-text-secondary` | `#4A4740` | `#C4BDAE` | 10.3:1 ✅ AAA |
+| `--color-text-muted` | `#6E6A60` | `#91897B` | 5.5:1 ✅ AA — the floor for text, as on light. |
+| `--color-border` | `#E4DFD4` | `#2A2721` | |
+| `--color-border-strong` | `#C6BFB0` | `#45413A` | |
+| `--color-action` | `#1B3FA0` | `#3F61D6` | Inverse text on it: 4.95:1 ✅ AA. |
+| `--color-action-hover` | `#16327E` | `#5473E8` | The ramp inverts — hover and active go **brighter**, not deeper. |
+| `--color-action-active` | `#102459` | `#6A86EF` | |
+| `--color-focus` | `#1B3FA0` | `#7F9DFF` | |
+
+Two rules the accents follow. Deep ultramarine is a hole on a dark page, so action colors
+lift until they read as light-emitting rather than desaturating (the reverse of what a
+light canvas needs). And the feedback colors invert their mix: `--color-error` and friends
+are cut with white instead of black, over a tinted surface dark enough to stay in the page.
+
+Shadows move to true black and roughly double their alpha — a warm-black shadow is
+invisible on a warm-black canvas. The grain (§1.7) switches from `multiply` to `screen` at
+a lower opacity, for the same reason and in the same direction: on dark it has to lift.
 
 ---
 
@@ -410,8 +448,12 @@ A single dark pill floating over the page.
 | Right padding | `--space-3` (12px) — the CTA pill provides the optical margin |
 | Shadow | `--shadow-nav` |
 | Border | `1px solid rgba(255,255,255,0.06)` — catches the top edge, keeps it from looking pasted on |
-| Layout | `display: flex; align-items: center; justify-content: space-between` |
-| Link group gap | `--space-8` (32px), centered via `margin-inline: auto` |
+| Layout | `display: grid; grid-template-columns: 1fr auto 1fr; align-items: center` |
+| Link group gap | `--space-8` (32px) |
+
+Three tracks rather than a flex row with an auto-margin group: the right zone carries a
+toggle *and* the CTA, so it no longer weighs what the wordmark does, and only equal side
+tracks keep the links centered on the bar instead of on whatever space is left over.
 
 **Logo (left).** Wordmark in Space Grotesk 600, 17px, `--color-text-inverse`, with an 8px
 mark to its left at `--color-ink-amber`. Total block height 24px.
@@ -422,27 +464,58 @@ mark to its left at `--color-ink-amber`. Total block height 24px.
 |---|---|
 | Default | `--color-text-inverse-muted` `#A5A096` |
 | Hover | `--color-text-inverse`, transition `color var(--duration-fast) var(--ease-standard)` |
-| Active / current page | `--color-text-inverse` + a 4px `--color-ink-amber` dot centered 8px below the baseline |
+| Current section | `--color-text-inverse` + the marker below |
 | Focus-visible | `--shadow-focus-inverse`, `border-radius: var(--radius-pill)`, `padding-inline: var(--space-2)` |
 | Pressed | `opacity: 0.7` |
 
-Do **not** animate an underline sliding between links. It is the single most over-used
-navigation flourish and it fights the restraint principle.
+**The current-section marker.** A 2px `--color-ink-amber` rule, inset to the link's text
+box, sitting 8px below the baseline. It is a *single element* that travels between links —
+one shared layout ID, `--duration-slow` on `--ease-out` — never one marker per link fading
+in and out.
+
+This is a deliberate exception to the restraint principle, and it is only earned because
+the links point at sections of the page the reader is already on: the marker is reporting
+where they are as they scroll, not decorating a click. It is driven by an observer
+watching which section crosses the middle of the viewport, and it carries
+`aria-current="location"` — "page" would claim a navigation that never happened. On a nav
+whose links lead somewhere else, use a static marker; a marker that slides between
+destinations the reader has not visited is the flourish this document otherwise refuses.
+
+The mobile sheet (§6.3) marks the same section with a plain amber dot and no movement:
+the sheet is a list that has just opened, so there is no journey for a moving marker to
+describe.
+
+**Theme toggle (right, before the CTA).** A 44px icon button, no fill at rest,
+`--color-text-inverse-muted` → `--color-text-inverse` with a `--color-ink-soft` fill on
+hover. One control, two states, no menu: it writes an explicit light or dark and gives up
+following the OS from then on (§2.6). Which glyph shows is decided in CSS off
+`[data-theme]`, not in JS — the theme is not knowable on the server, and an icon that
+appears only after hydration is a visible flash of nothing.
 
 **CTA (right).** Light pill on the dark bar.
 
 | State | Background | Text |
 |---|---|---|
-| Default | `--color-bg` `#FBFAF6` | `--color-ink` |
-| Hover | `#FFFFFF`, `transform: translateY(-1px)` | `--color-ink` |
-| Active | `#EDEAE2`, `transform: translateY(0)` | `--color-ink` |
+| Default | `--color-text-inverse` `#FBFAF6` | `--color-ink` |
+| Hover | `--color-text-inverse-strong` `#FFFFFF`, `transform: translateY(-1px)` | `--color-ink` |
+| Active | `transform: translateY(0)` | `--color-ink` |
 | Focus-visible | `--shadow-focus-inverse` | — |
+
+The fill is the inverse-*text* token rather than the page background. They hold the same
+hex on light, but the ink surfaces stay dark under the dark theme (§2.6) — a `--color-bg`
+pill would vanish into the bar it sits on.
 
 Height 40px, padding `0 var(--space-5)`, `--radius-pill`, button label type.
 
-**Scroll behavior.** The bar is sticky from the first pixel — it does not hide or shrink.
-On scroll past 80px, increase the ambient shadow layer opacity from 0.42 to 0.5 over 200ms.
-That is the entire scroll interaction.
+**Scroll behavior.** The bar is sticky from the first pixel and never shrinks. Its ambient
+shadow layer ramps its alpha from 0.42 to 0.5 as a continuous read of the scroll offset —
+no threshold, so nothing can strobe at a boundary.
+
+Past 96px — its own height plus the top gap, inside which the page still reads as "the
+top" — the bar retracts on a downward scroll and returns on any upward one, blurring
+slightly as it travels so the movement reads as speed rather than a jump cut. Retraction
+is a transform, so it is off entirely under `prefers-reduced-motion` (§10.6): a bar that
+teleported out of frame would be worse than one that simply stayed.
 
 ### 6.2 Tablet (768–1023px)
 
@@ -674,7 +747,8 @@ Links in body copy are always underlined. Color alone is not an affordance (§12
 
 ### 9.4 Navigation link
 
-See §6.1. Summary: muted → inverse on hover, amber dot for current, pill-shaped focus ring.
+See §6.1. Summary: muted → inverse on hover, a travelling amber rule under the current
+section, pill-shaped focus ring.
 
 ### 9.5 Card (base)
 
@@ -1100,6 +1174,7 @@ design is.
   --color-text-muted:            #6E6A60;
   --color-text-inverse:          #FBFAF6;
   --color-text-inverse-muted:    #A5A096;
+  --color-text-inverse-strong:   #FFFFFF;   /* light fill on ink, hover (§6.1) */
 
   --color-border:                #E4DFD4;
   --color-border-strong:         #C6BFB0;
@@ -1249,9 +1324,15 @@ design is.
   /* ---------------------------------------------------------------
      SHADOWS
      --------------------------------------------------------------- */
+  /* The nav's ambient alpha is animated in JS (§6.1) and JS cannot read a
+     token — so the colour is published as a bare channel triple that the
+     animation interpolates an alpha into, and the dark theme's much deeper
+     shadow arrives through the same var() with nothing to switch on. */
+  --shadow-nav-rgb:  26 25 23;
+  --shadow-nav-near: 0 2px 6px -2px rgb(26 25 23 / 0.14);
   --shadow-nav:
-    0 2px 6px -2px rgb(26 25 23 / 0.14),
-    0 12px 32px -14px rgb(26 25 23 / 0.42);
+    var(--shadow-nav-near),
+    0 12px 32px -14px rgb(var(--shadow-nav-rgb) / 0.42);
   --shadow-card: none;
   --shadow-card-hover:
     0 1px 2px rgb(26 25 23 / 0.06),

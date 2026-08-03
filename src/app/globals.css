@@ -3,9 +3,9 @@
    …). Unlayered declarations outrank anything in `@layer theme`, so the raw value
    here always wins and the responsive overrides at the bottom of tokens.css keep
    working. */
-@import './tokens.css';
+@import "./tokens.css";
 
-@import 'tailwindcss';
+@import "tailwindcss";
 
 /* `inline` makes the utilities emit the token's var() directly rather than a
    reference to the theme key — without it, keys that share a token's name would
@@ -25,6 +25,7 @@
   --color-muted: var(--color-text-muted);
   --color-inverse: var(--color-text-inverse);
   --color-inverse-muted: var(--color-text-inverse-muted);
+  --color-inverse-strong: var(--color-text-inverse-strong);
   --color-line: var(--color-border);
   --color-line-strong: var(--color-border-strong);
   --color-line-inverse: var(--color-border-inverse);
@@ -119,7 +120,6 @@
   --shadow-*: initial;
   --shadow-none: none;
   --shadow-nav: var(--shadow-nav);
-  --shadow-nav-scrolled: var(--shadow-nav-scrolled);
   --shadow-card: var(--shadow-card);
   --shadow-card-hover: var(--shadow-card-hover);
   --shadow-overlay: var(--shadow-overlay);
@@ -206,16 +206,13 @@
   /* Floating nav shell (§6.1) */
   width: min(var(--container-nav), calc(100% - var(--page-pad) * 2));
   margin-inline: auto;
-  /* Step 1 of the page-load sequence (§10.2). CSS-only, so it needs no JS to
-       start and no JS to finish — reduced motion collapses the duration and the
-       bar is simply there (§10.6). */
-  animation: nav-enter var(--duration-base) var(--ease-out) both;
+
 }
 
 @utility nav-link {
   /* Current page marker: one source of truth, aria-current (§12.5) */
-  &[aria-current='page']::after {
-    content: '';
+  &[aria-current="page"]::after {
+    content: "";
     position: absolute;
     left: 50%;
     bottom: calc(var(--space-2) * -1);
@@ -224,6 +221,31 @@
     transform: translateX(-50%);
     border-radius: var(--radius-pill);
     background-color: var(--color-ink-amber);
+  }
+}
+
+/* -------------------------------------------------------------------
+   THEME-CONDITIONAL CONTENT
+   The theme toggle has to show a different glyph per theme, and the
+   theme is only known on the client. Doing that in React would either
+   mismatch the server's HTML or blank the icon until hydration, so the
+   swap is left to CSS reading the same attribute the palette does —
+   correct from the very first paint, and free afterwards.
+   Both default to the light theme, which is also the no-JS state: with
+   no attribute on the root, nothing selects the dark glyph.
+   ------------------------------------------------------------------- */
+
+@utility theme-when-light {
+  :root[data-theme="dark"] & {
+    display: none;
+  }
+}
+
+@utility theme-when-dark {
+  display: none;
+
+  :root[data-theme="dark"] & {
+    display: block;
   }
 }
 
@@ -239,6 +261,14 @@
   mix-blend-mode: multiply;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
   background-repeat: repeat;
+
+  /* Multiplying a dark plate into a dark page is a no-op — the grain has to
+     work the other way round and lift, not deepen. Lower opacity because
+     light-on-dark noise reads far louder than dark-on-light at equal value. */
+  :root[data-theme="dark"] & {
+    mix-blend-mode: screen;
+    opacity: 0.09;
+  }
 
   @media (prefers-reduced-transparency: reduce) {
     display: none;
@@ -377,6 +407,34 @@
   }
 }
 
+@utility menu-dialog {
+  /* The mobile sheet lives in a modal `<dialog>` (§6.3), so the platform owns
+     the focus trap, Escape and the inertness of the page behind it. None of
+     that is styling — everything below is only undoing the UA's centred-box
+     defaults so the element can be a bare, full-viewport stage for the scrim
+     and the sheet it holds. */
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+
+  /* No transform or filter here, ever: either one would make this element the
+     containing block for its `fixed` children and re-anchor them to the dialog
+     box — the same trap §6.1 documents for the nav shell. */
+
+  /* The scrim stays a real element so Motion can cross-fade it with the sheet
+     and so a click on it can close the menu. The UA backdrop would only dim a
+     second time on top of that, so it is taken out of the picture. */
+  &::backdrop {
+    background: transparent;
+  }
+}
+
 @utility br-lg {
   /* Deliberate line breaks in the display headline — never arbitrary wrap. */
   display: none;
@@ -475,8 +533,9 @@
 }
 
 /* -------------------------------------------------------------------
-   KEYFRAMES (§10.2) — transform and opacity only (§10.5)
+   PAGE-LOAD SEQUENCE (§10.2) — transform and opacity only (§10.5)
    ------------------------------------------------------------------- */
+
 @keyframes nav-enter {
   from {
     opacity: 0;
@@ -493,7 +552,20 @@
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    /* Not in §10.6's snippet, but collapsing the duration alone still lets a
+       delayed entrance hold its from-state for the whole delay. */
+    animation-delay: 0s !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* §10.6 skips the page-load sequence outright rather than running it at
+     0.01ms. It has to: a `backwards`-filled animation paints its from-state for
+     the frame or two before it is given a start time, so collapsing the
+     duration still flickers an invisible nav bar at exactly the people who
+     asked for less motion. Removing the animation leaves the final state, which
+     is what the element already renders as. */
+  .nav-shell {
+    animation: none !important;
   }
 }

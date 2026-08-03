@@ -102,6 +102,9 @@ export const Dropzone = () => {
   /** Progress ticks land here and are flushed to state once per frame. */
   const progressBufferRef = useRef<Record<string, number>>({});
   const progressFrameRef = useRef<number | null>(null);
+  const queueRef = useRef<HTMLElement | null>(null);
+  /** Set when files are accepted, consumed once the queue has rendered. */
+  const shouldScrollRef = useRef(false);
 
   const updateItems = useCallback((next: QueueItem[]) => {
     itemsRef.current = next;
@@ -323,10 +326,25 @@ export const Dropzone = () => {
       setIsPaused(false);
 
       const queued = accepted.map((file) => ({ id: createId(), file }));
+      shouldScrollRef.current = true;
       updateItems([...itemsRef.current, ...queued]);
     },
     [updateItems]
   );
+
+  /**
+   * The queue renders below the fold, so dropping files would otherwise leave
+   * the user staring at the panel while the work happens off screen. The scroll
+   * waits for the commit that mounts the section, and `behavior` is left at
+   * `auto` on purpose: it defers to `scroll-behavior` in globals.css, which
+   * reduced-motion already turns off.
+   */
+  useEffect(() => {
+    if (!shouldScrollRef.current || !queueRef.current) return;
+
+    shouldScrollRef.current = false;
+    queueRef.current.scrollIntoView({ block: "start" });
+  }, [items]);
 
   /**
    * Dropping an image anywhere outside the panel makes the browser navigate to
@@ -690,11 +708,12 @@ export const Dropzone = () => {
 
       {items.length > 0 && (
         <motion.section
+          ref={queueRef}
           aria-labelledby="queue-heading"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.56, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-16"
+          className="mt-16 scroll-mt-24"
         >
           {/* Step 03 is the download, so it carries the same heading rhythm as
               the two steps above it — the queue was previously an unlabelled
@@ -748,7 +767,7 @@ export const Dropzone = () => {
             />
           </div>
 
-          <ul className="mt-6 overflow-hidden rounded-md border border-line bg-bg">
+          <ul className="mt-6 max-h-128 overflow-y-auto overflow-x-hidden rounded-md border border-line bg-bg">
             {items.map((item, index) => (
               <ItemDropzone
                 index={index}
@@ -794,10 +813,8 @@ export const Dropzone = () => {
           )}
 
           <div className="mt-8 flex flex-wrap gap-4">
-            <Button onClick={handleDownload} disabled={doneResults.length === 0}>
-              {isFinished
-                ? "Download all"
-                : `Download ${doneResults.length} ready`}
+            <Button onClick={handleDownload} disabled={!isFinished}>
+              Download all
             </Button>
 
             {/* Stopping keeps every finished image — it is not a reset (§9.1). */}

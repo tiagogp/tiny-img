@@ -13,9 +13,11 @@ const VARIANTS: Record<Variant, string> = {
     "bg-action text-inverse hover:bg-action-hover hover:-translate-y-px active:bg-action-active active:translate-y-0 disabled:bg-line-strong disabled:text-muted disabled:translate-y-0 disabled:hover:bg-line-strong",
   secondary:
     "bg-transparent border-strong border-ink text-primary hover:bg-ink hover:text-inverse active:bg-ink-soft disabled:border-line disabled:text-muted disabled:hover:bg-transparent disabled:hover:text-muted",
-  // Light pill on a dark surface — nav and footer CTA (§6.1).
+  // Light pill on a dark surface — nav and footer CTA (§6.1). The fill is the
+  // inverse-text token rather than the page background: the ink surfaces stay
+  // dark under the dark theme, so a `bg-bg` pill would vanish into the bar.
   inverse:
-    "bg-bg text-ink hover:bg-raised hover:-translate-y-px active:translate-y-0 disabled:bg-ink-soft disabled:text-inverse-muted",
+    "bg-inverse text-ink hover:bg-inverse-strong hover:-translate-y-px active:translate-y-0 disabled:bg-ink-soft disabled:text-inverse-muted",
   quiet:
     "bg-transparent text-secondary hover:text-primary active:opacity-70 disabled:text-muted",
 };

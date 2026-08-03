@@ -5,6 +5,10 @@
    ------------------------------------------------------------------- */
 
 :root {
+  /* Native controls — the range slider and the selects in the compression
+     panel — take their chrome from here, so the theme has to declare it. */
+  color-scheme: light;
+
   /* ---------------------------------------------------------------
      COLOR — NEUTRALS
      --------------------------------------------------------------- */
@@ -19,6 +23,10 @@
   --color-text-muted: #6e6a60;
   --color-text-inverse: #fbfaf6;
   --color-text-inverse-muted: #a5a096;
+  /* Hover for a light fill sitting on a dark surface — the nav CTA. Named
+     rather than reached for as "white" so it survives the dark theme, where
+     `--color-bg` is no longer the light end of the scale. */
+  --color-text-inverse-strong: #ffffff;
 
   --color-border: #e4dfd4;
   --color-border-strong: #c6bfb0;
@@ -61,12 +69,14 @@
      TYPOGRAPHY — FAMILIES
      next/font supplies the --font-*-next variables (see layout.tsx).
      --------------------------------------------------------------- */
-  --font-display: var(--font-space-grotesk), "Space Grotesk",
-    "Helvetica Neue", Arial, sans-serif;
-  --font-body: var(--font-ibm-plex-sans), "IBM Plex Sans", -apple-system,
+  --font-display:
+    var(--font-space-grotesk), "Space Grotesk", "Helvetica Neue", Arial,
+    sans-serif;
+  --font-body:
+    var(--font-ibm-plex-sans), "IBM Plex Sans", -apple-system,
     BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: var(--font-space-mono), ui-monospace, "SFMono-Regular", Menlo,
-    monospace;
+  --font-mono:
+    var(--font-space-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   /* ---------------------------------------------------------------
      TYPOGRAPHY — WEIGHTS
@@ -174,18 +184,22 @@
   /* ---------------------------------------------------------------
      SHADOWS
      --------------------------------------------------------------- */
-  --shadow-nav: 0 2px 6px -2px rgb(26 25 23 / 0.14),
-    0 12px 32px -14px rgb(26 25 23 / 0.42);
-  --shadow-nav-scrolled: 0 2px 6px -2px rgb(26 25 23 / 0.14),
-    0 12px 32px -14px rgb(26 25 23 / 0.5);
+  /* The nav's ambient layer ramps its alpha with scroll (§6.1), and that ramp
+     runs in JS. Motion can't read a token, but it can interpolate a number into
+     a string that still names one — so the shadow's colour stays here as a bare
+     channel triple and only the alpha crosses into JS. */
+  --shadow-nav-rgb: 26 25 23;
+  --shadow-nav-near: 0 2px 6px -2px rgb(26 25 23 / 0.14);
+  --shadow-nav:
+    var(--shadow-nav-near), 0 12px 32px -14px rgb(var(--shadow-nav-rgb) / 0.42);
   --shadow-card: none;
-  --shadow-card-hover: 0 1px 2px rgb(26 25 23 / 0.06),
-    0 16px 36px -20px rgb(26 25 23 / 0.28);
-  --shadow-overlay: 0 4px 12px -4px rgb(26 25 23 / 0.16),
-    0 32px 64px -24px rgb(26 25 23 / 0.36);
+  --shadow-card-hover:
+    0 1px 2px rgb(26 25 23 / 0.06), 0 16px 36px -20px rgb(26 25 23 / 0.28);
+  --shadow-overlay:
+    0 4px 12px -4px rgb(26 25 23 / 0.16), 0 32px 64px -24px rgb(26 25 23 / 0.36);
   --shadow-focus: 0 0 0 3px var(--color-bg), 0 0 0 5px var(--color-focus);
-  --shadow-focus-inverse: 0 0 0 3px var(--color-ink),
-    0 0 0 5px var(--color-focus-inverse);
+  --shadow-focus-inverse:
+    0 0 0 3px var(--color-ink), 0 0 0 5px var(--color-focus-inverse);
 
   /* ---------------------------------------------------------------
      MOTION
@@ -213,6 +227,75 @@
   --z-modal: 160;
   --z-toast: 170;
   --z-skiplink: 200;
+}
+
+/* -----------------------------------------------------------------
+   DARK THEME
+   Only ever selected by an explicit attribute: the boot script in
+   layout.tsx resolves "system" against `prefers-color-scheme` before
+   the first paint and always writes a concrete light/dark value. That
+   keeps this a single block rather than the same overrides repeated
+   inside a media query.
+
+   The ink family is deliberately absent from the light-mode overrides
+   below and only shifted, not flipped: a dark surface is dark in both
+   themes, so the nav pill and the footer keep their identity and every
+   `text-inverse` on them stays legible without a second set of rules.
+   ----------------------------------------------------------------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* NEUTRALS — the page goes below the ink family so the pill and the
+     footer still read as slabs lifted off it. */
+  --color-bg: #100f0d;
+  --color-surface: #181611;
+  --color-surface-raised: #201e18;
+  --color-ink: #23211c;
+  --color-ink-soft: #2e2b25;
+
+  --color-text-primary: #f4f1e8;
+  --color-text-secondary: #c4bdae;
+  --color-text-muted: #91897b;
+  --color-text-inverse: #f7f5ef;
+  --color-text-inverse-muted: #a8a296;
+  --color-text-inverse-strong: #ffffff;
+
+  --color-border: #2a2721;
+  --color-border-strong: #45413a;
+  --color-border-inverse: #3d3a33;
+
+  /* ACTION — #1B3FA0 is a hole on a dark page. The fill lifts until it
+     reads as light-emitting, and the ramp inverts: hover and active go
+     brighter rather than deeper. Inverse text still clears AA on each. */
+  --color-action: #3f61d6;
+  --color-action-hover: #5473e8;
+  --color-action-active: #6a86ef;
+  --color-action-subtle: #1b2036;
+  --color-action-ink: #f4f1e8;
+
+  /* FEEDBACK — the light theme's text colours are all mixed with black to
+     stay legible on paper; dark needs the opposite mix, over a tinted
+     surface dark enough to sit in the page. */
+  --color-focus: #7f9dff;
+  --color-error: #ff8a70;
+  --color-error-surface: #2c1712;
+  --color-success: #4fc48c;
+  --color-success-surface: #10281d;
+  --color-warning: #f0b83f;
+  --color-warning-surface: #2b2010;
+  --color-overlay: rgb(6 5 4 / 0.7);
+  --color-grain: rgb(247 245 239 / 0.04);
+
+  /* SHADOWS — a warm-black shadow is invisible on a warm-black page, so
+     every layer goes to true black and considerably deeper. */
+  --shadow-nav-rgb: 0 0 0;
+  --shadow-nav-near: 0 2px 6px -2px rgb(0 0 0 / 0.5);
+  --shadow-nav:
+    var(--shadow-nav-near), 0 12px 32px -14px rgb(var(--shadow-nav-rgb) / 0.8);
+  --shadow-card-hover:
+    0 1px 2px rgb(0 0 0 / 0.5), 0 16px 36px -20px rgb(0 0 0 / 0.75);
+  --shadow-overlay:
+    0 4px 12px -4px rgb(0 0 0 / 0.55), 0 32px 64px -24px rgb(0 0 0 / 0.7);
 }
 
 /* -----------------------------------------------------------------

@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { IBM_Plex_Sans, Space_Grotesk, Space_Mono } from "next/font/google";
 import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
+import { ThemeProvider } from "../components/ThemeProvider";
+import { THEME_BOOT_SCRIPT } from "@/utils/theme";
 
 /* Display, body and mono — the three families from DESIGN.md §3.1, self-hosted
    by next/font and swapped so nothing blocks the first paint. */
@@ -57,7 +59,14 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${spaceGrotesk.variable} ${ibmPlexSans.variable} ${spaceMono.variable}`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* Before anything paints, and before React is anywhere near the page —
+            see THEME_BOOT_SCRIPT. React never renders the attribute it sets,
+            which is what `suppressHydrationWarning` above is for. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="font-body">
         <a href="#main" className="skip-link">
           Skip to content
@@ -66,9 +75,11 @@ export default function RootLayout({
         {/* One instance, mounted at the root, never animated (§14.4). */}
         <div className="grain" aria-hidden="true" />
 
-        <Header />
-        {children}
-        <Footer />
+        <ThemeProvider>
+          <Header />
+          {children}
+          <Footer />
+        </ThemeProvider>
       </body>
     </html>
   );
