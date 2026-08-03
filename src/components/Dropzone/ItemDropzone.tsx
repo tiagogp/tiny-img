@@ -1,82 +1,241 @@
+"use client";
+
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
-import { FC } from "react";
+import { downloadBlob } from "@/utils/downloadBlob";
+import type { CompressionOutcome } from "@/utils/compressImage";
+import { useThumbnail } from "@/hooks/useThumbnail";
+import { FC, memo, useState } from "react";
+import ComparePreview from "./ComparePreview";
 
 interface ItemDropzoneProps {
   index: number;
+  id: string;
   file: File;
-  deleteFile(index: number): void;
-  isMobile: boolean;
-  actualItem?: File;
+  deleteFile(id: string): void;
+  retryFile(id: string): void;
+  actualItem?: CompressionOutcome;
   isProcessing?: boolean;
+  hasFailed?: boolean;
+  /** Why it failed, so the row says more than "Failed". */
+  error?: string;
+  progress?: number;
+  isPaused?: boolean;
 }
+
+/** Status is carried by a label, never by the dot colour alone (§12.1). */
+const Status: FC<{ dotClass: string; label: string; toneClass?: string }> = ({
+  dotClass,
+  label,
+  toneClass = "text-muted",
+}) => (
+  <p className={`flex items-center gap-2 font-mono text-caption ${toneClass}`}>
+    <span aria-hidden="true" className={`h-2 w-2 rounded-pill ${dotClass}`} />
+    {label}
+  </p>
+);
+
+const rowButton =
+  "inline-flex h-8 items-center rounded-pill border border-line px-4 text-body-sm text-secondary transition-[color,background-color,border-color] duration-fast ease-standard hover:border-line-strong hover:bg-surface hover:text-primary";
 
 const ItemDropzone: FC<ItemDropzoneProps> = ({
   file,
   index,
-  isMobile,
+  id,
+  deleteFile,
+  retryFile,
   actualItem,
   isProcessing = false,
+  hasFailed = false,
+  error,
+  progress,
+  isPaused = false,
 }) => {
   const { name, size } = file;
-  const handleDownload = async () => {
-    if (actualItem) {
-      const { name, type } = actualItem;
-      const downloadLink = document.createElement("a");
-      downloadLink.href = URL.createObjectURL(actualItem);
-      downloadLink.download = `tinyimg-${name.replace(
-        `.${type.split("/")[1]}`,
-        ""
-      )}`;
-      downloadLink.click();
-    }
+  const [isComparing, setIsComparing] = useState(false);
+
+  // The thumbnail always shows the source image: it is what the row is about,
+  // and it exists before there is any result to show. Downscaled first — see
+  // `useThumbnail` for why pointing at the original file is not an option.
+  const thumbnailUrl = useThumbnail(file);
+
+  const handleDownload = () => {
+    if (!actualItem) return;
+
+    // The page promises every file keeps its name, so no prefix is added here
+    // — `compressImage` has already corrected the extension if the format
+    // changed, and the ZIP path uses the same name.
+    downloadBlob(actualItem.file, actualItem.file.name);
   };
 
+  const wasResized =
+    !!actualItem &&
+    (actualItem.width !== actualItem.originalWidth ||
+      actualItem.height !== actualItem.originalHeight);
+
+  const savedPercent =
+    actualItem && !actualItem.unchanged
+      ? Math.max(0, 100 - (actualItem.file.size / actualItem.originalSize) * 100)
+      : 0;
+
   return (
-    <div className="text-slate-400 text-sm flex flex-wrap items-center justify-between w-full border-b py-4 last-of-type:border-b-0 border-slate-100 h-24 sm:h-14 gap-y-2">
-      <p className="w-[10rem] truncate ">
-        {index + 1}. {name}
-      </p>
-      <div className="flex items-center gap-4 justify-start ">
-        <p
-          className={`${
-            actualItem && "line-through text-xs opacity-50"
-          } transition-all duration-500 ease-in-out`}
+    /* `queue-row` skips layout and paint while off screen — with a hundred rows
+       the ones nobody is looking at should not cost a frame. */
+    <li className="queue-row flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-5 py-4 last:border-b-0 md:px-6">
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <span
+          data-numeric
+          aria-hidden="true"
+          className="font-mono text-overline font-bold text-muted"
+        >
+          {String(index + 1).padStart(2, "0")}
+        </span>
+
+        {/* Decorative: the filename beside it is the accessible name (§12.7). */}
+        <span className="h-10 w-10 shrink-0 overflow-hidden rounded-xs bg-surface">
+          {thumbnailUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element --
+               a blob: URL for a file that never leaves the tab; there is
+               nothing for the image optimizer to fetch or cache. */
+            <img
+              src={thumbnailUrl}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-cover"
+            />
+          )}
+        </span>
+
+        <div className="min-w-0">
+          <p className="min-w-0 truncate text-body-sm text-primary">{name}</p>
+          {hasFailed && error && (
+            <p className="mt-1 text-caption text-error">{error}</p>
+          )}
+        </div>
+      </div>
+
+      <div
+        data-numeric
+        className="flex items-center gap-2 font-mono text-caption"
+      >
+        <span
+          className={
+            actualItem && !actualItem.unchanged
+              ? "text-muted line-through"
+              : "text-secondary"
+          }
         >
           {convertSizeFileAndUnit(size)}
-        </p>
-        {actualItem && (
+        </span>
+        {actualItem && !actualItem.unchanged && (
           <>
-            {">"}
-            <p className="text-green-400 text-xs">
-              {convertSizeFileAndUnit(actualItem.size)}
-            </p>
+            <span aria-hidden="true" className="text-muted">
+              →
+            </span>
+            <span className="text-success">
+              {convertSizeFileAndUnit(actualItem.file.size)}
+            </span>
+            <span className="text-success">−{savedPercent.toFixed(0)}%</span>
           </>
         )}
       </div>
-      {!actualItem && isProcessing && (
-        <div className="flex items-center">
-          <div className="w-4 h-4 rounded-full bg-slate-400 animate-pulse mr-2"></div>
-          <p>Compressing...</p>
-        </div>
-      )}
-      {!actualItem && !isProcessing && (
-        <div className="flex items-center">
-          <div className="w-4 h-4 rounded-full bg-gray-300 mr-2"></div>
-          <p>Waiting...</p>
-        </div>
-      )}
+
       {actualItem && (
-        <div className="flex items-center gap-4">
-          <button
-            onClick={handleDownload}
-            className="text-blue-400 hover:text-blue-500 py-1 px-2 rounded-md border border-blue-400 hover:border-blue-500 hover:bg-blue-100 transition-all duration-200 ease-in-out text-xs"
-          >
-            Download
-          </button>
-        </div>
+        <p data-numeric className="font-mono text-caption text-muted">
+          {wasResized
+            ? `${actualItem.originalWidth}×${actualItem.originalHeight} → ${actualItem.width}×${actualItem.height}`
+            : `${actualItem.width}×${actualItem.height}`}
+        </p>
       )}
-    </div>
+
+      {/* `unchanged` means re-encoding produced a *bigger* file and the original
+          was kept — "Already optimized" read as praise for a fallback. */}
+      {actualItem?.unchanged && (
+        <Status dotClass="bg-line-strong" label="Original was smaller — kept" />
+      )}
+
+      {!actualItem && hasFailed && (
+        <Status dotClass="bg-error" label="Failed" toneClass="text-error" />
+      )}
+
+      {!actualItem && !hasFailed && isProcessing && (
+        <Status
+          dotClass="animate-pulse bg-action"
+          toneClass="text-secondary"
+          label={
+            typeof progress === "number" && progress > 0
+              ? `Compressing ${progress}%`
+              : "Compressing…"
+          }
+        />
+      )}
+
+      {!actualItem && !hasFailed && !isProcessing && (
+        <Status
+          dotClass="bg-line-strong"
+          label={isPaused ? "Stopped" : "Waiting"}
+        />
+      )}
+
+      <div className="ml-auto flex items-center gap-2">
+        {actualItem && (
+          <>
+            <button
+              type="button"
+              onClick={() => setIsComparing(true)}
+              className={rowButton}
+            >
+              Compare
+            </button>
+            <button type="button" onClick={handleDownload} className={rowButton}>
+              Download
+            </button>
+          </>
+        )}
+        {hasFailed && (
+          <button
+            type="button"
+            onClick={() => retryFile(id)}
+            className={rowButton}
+          >
+            Try again
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label={`Remove ${name}`}
+          onClick={() => deleteFile(id)}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-pill text-muted transition-colors duration-fast ease-standard hover:text-error"
+        >
+          <svg
+            className="h-4 w-4"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d="M4 4l8 8M12 4l-8 8" />
+          </svg>
+        </button>
+      </div>
+
+      {actualItem && isComparing && (
+        <ComparePreview
+          onClose={() => setIsComparing(false)}
+          file={file}
+          outcome={actualItem}
+        />
+      )}
+    </li>
   );
 };
 
-export default ItemDropzone;
+/**
+ * The queue re-renders on every progress tick of every image in flight. Without
+ * this, one worker reporting 41% re-renders all hundred rows — and each of those
+ * renders re-reads a `File` and re-runs the thumbnail effect's dependency check.
+ * Every prop here is either a primitive or an identity the parent keeps stable.
+ */
+export default memo(ItemDropzone);
