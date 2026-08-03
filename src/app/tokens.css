@@ -1,0 +1,260 @@
+/* -------------------------------------------------------------------
+   DESIGN TOKENS — DESIGN.md §13
+   The only file in the codebase allowed to hold a raw hex, px, or ms
+   value. Everything else references these through var() or Tailwind.
+   ------------------------------------------------------------------- */
+
+:root {
+  /* ---------------------------------------------------------------
+     COLOR — NEUTRALS
+     --------------------------------------------------------------- */
+  --color-bg: #fbfaf6;
+  --color-surface: #f2efe7;
+  --color-surface-raised: #ffffff;
+  --color-ink: #1a1917;
+  --color-ink-soft: #2c2a26;
+
+  --color-text-primary: #1a1917;
+  --color-text-secondary: #4a4740;
+  --color-text-muted: #6e6a60;
+  --color-text-inverse: #fbfaf6;
+  --color-text-inverse-muted: #a5a096;
+
+  --color-border: #e4dfd4;
+  --color-border-strong: #c6bfb0;
+  --color-border-inverse: #3a3833;
+
+  /* ---------------------------------------------------------------
+     COLOR — ACTION
+     --------------------------------------------------------------- */
+  --color-action: #1b3fa0;
+  --color-action-hover: #16327e;
+  --color-action-active: #102459;
+  --color-action-subtle: #e8ebf7;
+  --color-action-ink: #1a1917;
+
+  /* ---------------------------------------------------------------
+     COLOR — ARTWORK INKS
+     --------------------------------------------------------------- */
+  --color-ink-blue: #1b3fa0;
+  --color-ink-coral: #f4573d;
+  --color-ink-coral-deep: #c2331d;
+  --color-ink-amber: #ffb227;
+  --color-ink-green: #00a05a;
+  --color-ink-green-deep: #0b7245;
+
+  /* ---------------------------------------------------------------
+     COLOR — FEEDBACK & SYSTEM
+     --------------------------------------------------------------- */
+  --color-focus: #1b3fa0;
+  --color-focus-inverse: #ffb227;
+  --color-error: #c2331d;
+  --color-error-surface: #fbeae6;
+  --color-success: #0b7245;
+  --color-success-surface: #e6f2ec;
+  --color-warning: #8a5a00;
+  --color-warning-surface: #fdf2dc;
+  --color-overlay: rgb(26 25 23 / 0.56);
+  --color-grain: rgb(26 25 23 / 0.055);
+
+  /* ---------------------------------------------------------------
+     TYPOGRAPHY — FAMILIES
+     next/font supplies the --font-*-next variables (see layout.tsx).
+     --------------------------------------------------------------- */
+  --font-display: var(--font-space-grotesk), "Space Grotesk",
+    "Helvetica Neue", Arial, sans-serif;
+  --font-body: var(--font-ibm-plex-sans), "IBM Plex Sans", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-space-mono), ui-monospace, "SFMono-Regular", Menlo,
+    monospace;
+
+  /* ---------------------------------------------------------------
+     TYPOGRAPHY — WEIGHTS
+     --------------------------------------------------------------- */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ---------------------------------------------------------------
+     TYPOGRAPHY — SIZES (fluid: 360px → 1440px)
+     --------------------------------------------------------------- */
+  --text-display: clamp(3.25rem, 1.2rem + 9vw, 8.5rem);
+  --text-h1: clamp(2.5rem, 1.4rem + 4.8vw, 5.25rem);
+  --text-h2: clamp(2rem, 1.4rem + 2.6vw, 3.5rem);
+  --text-h3: clamp(1.5rem, 1.2rem + 1.3vw, 2.25rem);
+  --text-h4: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);
+  --text-h5: 1.125rem;
+  --text-h6: 1rem;
+  --text-body-lg: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  --text-body: 1.0625rem;
+  --text-body-sm: 0.875rem;
+  --text-nav: 0.9375rem;
+  --text-button: 0.9375rem;
+  --text-eyebrow: 0.75rem;
+  --text-caption: 0.75rem;
+  --text-overline: 0.6875rem;
+
+  /* ---------------------------------------------------------------
+     TYPOGRAPHY — LINE HEIGHT & TRACKING
+     --------------------------------------------------------------- */
+  --leading-display: 0.92;
+  --leading-h1: 0.96;
+  --leading-h2: 1.02;
+  --leading-h3: 1.1;
+  --leading-h4: 1.2;
+  --leading-tight: 1.35;
+  --leading-body: 1.65;
+  --leading-relaxed: 1.6;
+  --leading-none: 1;
+
+  --tracking-display: -0.04em;
+  --tracking-h1: -0.035em;
+  --tracking-h2: -0.03em;
+  --tracking-h3: -0.022em;
+  --tracking-h4: -0.015em;
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.06em;
+  --tracking-eyebrow: 0.14em;
+
+  /* ---------------------------------------------------------------
+     SPACING (4px base)
+     --------------------------------------------------------------- */
+  --space-1: 0.25rem; /*   4px */
+  --space-2: 0.5rem; /*   8px */
+  --space-3: 0.75rem; /*  12px */
+  --space-4: 1rem; /*  16px */
+  --space-5: 1.25rem; /*  20px */
+  --space-6: 1.5rem; /*  24px */
+  --space-8: 2rem; /*  32px */
+  --space-10: 2.5rem; /*  40px */
+  --space-12: 3rem; /*  48px */
+  --space-16: 4rem; /*  64px */
+  --space-20: 5rem; /*  80px */
+  --space-24: 6rem; /*  96px */
+  --space-32: 8rem; /* 128px */
+  --space-40: 10rem; /* 160px */
+  --space-48: 12rem; /* 192px */
+
+  /* ---------------------------------------------------------------
+     LAYOUT
+     --------------------------------------------------------------- */
+  --container-max: 1440px;
+  --container-wide: 1680px;
+  --container-text: 760px;
+  --container-nav: 1180px;
+  --measure: 68ch;
+  --measure-intro: 60ch;
+  --cta-max: 400px; /* full-width mobile CTA cap (§7.4) */
+  --hero-panel-min: clamp(360px, 52vh, 680px); /* artwork panel (§4.5) */
+
+  --page-pad: var(--space-5); /* mobile default; overridden below */
+  --grid-cols: 4;
+  --grid-gap: var(--space-4);
+  --section-pad: var(--space-16);
+
+  /* ---------------------------------------------------------------
+     BORDERS & RADII
+     --------------------------------------------------------------- */
+  --border-width: 1px;
+  --border-width-ink: 1.5px;
+  --border-hairline: var(--border-width) solid var(--color-border);
+  --border-strong: var(--border-width) solid var(--color-border-strong);
+  --border-ink: var(--border-width-ink) solid var(--color-ink);
+  --border-inverse: var(--border-width) solid var(--color-border-inverse);
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
+  --radius-hero: 32px;
+  --radius-pill: 999px;
+
+  /* ---------------------------------------------------------------
+     SHADOWS
+     --------------------------------------------------------------- */
+  --shadow-nav: 0 2px 6px -2px rgb(26 25 23 / 0.14),
+    0 12px 32px -14px rgb(26 25 23 / 0.42);
+  --shadow-nav-scrolled: 0 2px 6px -2px rgb(26 25 23 / 0.14),
+    0 12px 32px -14px rgb(26 25 23 / 0.5);
+  --shadow-card: none;
+  --shadow-card-hover: 0 1px 2px rgb(26 25 23 / 0.06),
+    0 16px 36px -20px rgb(26 25 23 / 0.28);
+  --shadow-overlay: 0 4px 12px -4px rgb(26 25 23 / 0.16),
+    0 32px 64px -24px rgb(26 25 23 / 0.36);
+  --shadow-focus: 0 0 0 3px var(--color-bg), 0 0 0 5px var(--color-focus);
+  --shadow-focus-inverse: 0 0 0 3px var(--color-ink),
+    0 0 0 5px var(--color-focus-inverse);
+
+  /* ---------------------------------------------------------------
+     MOTION
+     --------------------------------------------------------------- */
+  --duration-instant: 100ms;
+  --duration-fast: 160ms;
+  --duration-base: 220ms;
+  --duration-slow: 320ms;
+  --duration-entrance: 560ms;
+  --duration-hero: 700ms;
+
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-linear: linear;
+
+  /* ---------------------------------------------------------------
+     Z-INDEX
+     --------------------------------------------------------------- */
+  --z-base: 0;
+  --z-grain: 1;
+  --z-sticky: 50;
+  --z-nav: 100;
+  --z-overlay: 150;
+  --z-modal: 160;
+  --z-toast: 170;
+  --z-skiplink: 200;
+}
+
+/* -----------------------------------------------------------------
+   RESPONSIVE TOKEN OVERRIDES
+   --bp-sm: 480px · --bp-md: 768px · --bp-lg: 1024px
+   --bp-xl: 1280px · --bp-2xl: 1440px
+   ----------------------------------------------------------------- */
+
+/* Small mobile drops body copy to 16px (DESIGN.md §11.2). */
+@media (max-width: 479px) {
+  :root {
+    --text-body: 1rem;
+  }
+}
+
+@media (min-width: 480px) {
+  :root {
+    --page-pad: var(--space-6);
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --page-pad: var(--space-8);
+    --grid-cols: 8;
+    --grid-gap: var(--space-5);
+    --section-pad: var(--space-20);
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --page-pad: var(--space-12);
+    --grid-cols: 12;
+    --grid-gap: var(--space-6);
+    --section-pad: var(--space-24);
+  }
+}
+
+@media (min-width: 1440px) {
+  :root {
+    --page-pad: var(--space-16);
+    --section-pad: var(--space-32);
+  }
+}
