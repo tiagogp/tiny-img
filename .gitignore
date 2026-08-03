@@ -15,6 +15,9 @@
 # production
 /build
 
+# vendored at build time by scripts/vendor-image-compression.mjs
+/public/vendor
+
 # misc
 .DS_Store
 *.pem
