@@ -1,76 +1,67 @@
-import {
-  CompressionOptions,
-  DEFAULT_OPTIONS,
-  OutputFormat,
-} from "@/components/Dropzone/CompressionSettings";
+import { getEngine, type MediaOptions } from "@/media/registry";
+import type { MediaKind } from "@/media/types";
 
-const STORAGE_KEY = "tinyimg:settings:v1";
+const STORAGE_KEY = "tinyimg:settings:v2";
+/** v1 held image options at the top level, before there was more than one kind. */
+const LEGACY_KEY = "tinyimg:settings:v1";
 
-const VALID_FORMATS: OutputFormat[] = [
-  "",
-  "image/webp",
-  "image/jpeg",
-  "image/png",
-];
+const KINDS: MediaKind[] = ["image", "audio", "video"];
+
+export type StoredSettings = Partial<Record<MediaKind, MediaOptions>>;
 
 /**
- * Anything can be in localStorage — an older shape, a half-written value, a
- * hand-edited entry. Validate field by field and fall back per field rather
- * than throwing the whole thing away over one bad number.
+ * Each engine validates its own options, so a bad audio entry can never cost
+ * someone their image settings. Kinds with no registered engine are dropped
+ * rather than passed through — nothing would know how to read them back.
  */
-function coerce(raw: unknown): CompressionOptions {
-  if (typeof raw !== "object" || raw === null) return DEFAULT_OPTIONS;
+function coerce(raw: unknown): StoredSettings {
+  if (typeof raw !== "object" || raw === null) return {};
 
   const value = raw as Record<string, unknown>;
+  const settings: StoredSettings = {};
 
-  const quality =
-    typeof value.quality === "number" &&
-    value.quality >= 0.1 &&
-    value.quality <= 1
-      ? value.quality
-      : DEFAULT_OPTIONS.quality;
+  for (const kind of KINDS) {
+    const engine = getEngine(kind);
+    if (!engine || !(kind in value)) continue;
 
-  const maxDimension =
-    typeof value.maxDimension === "number" &&
-    Number.isFinite(value.maxDimension) &&
-    value.maxDimension >= 0
-      ? Math.trunc(value.maxDimension)
-      : DEFAULT_OPTIONS.maxDimension;
+    settings[kind] = engine.coerce(value[kind]);
+  }
 
-  const maxSizeMB =
-    typeof value.maxSizeMB === "number" &&
-    Number.isFinite(value.maxSizeMB) &&
-    value.maxSizeMB >= 0
-      ? value.maxSizeMB
-      : DEFAULT_OPTIONS.maxSizeMB;
+  return settings;
+}
 
-  const format = VALID_FORMATS.includes(value.format as OutputFormat)
-    ? (value.format as OutputFormat)
-    : DEFAULT_OPTIONS.format;
-
-  return { quality, maxDimension, maxSizeMB, format };
+function read(key: string): unknown {
+  const stored = window.localStorage.getItem(key);
+  return stored ? JSON.parse(stored) : null;
 }
 
 /** Returns `null` when there is nothing stored, so the caller can skip a render. */
-export function loadSettings(): CompressionOptions | null {
+export function loadSettings(): StoredSettings | null {
   if (typeof window === "undefined") return null;
 
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return null;
+    const current = read(STORAGE_KEY);
+    if (current) return coerce(current);
 
-    return coerce(JSON.parse(stored));
+    // A returning user should not lose the settings they picked before the
+    // queue learned about other kinds. v1 is left in place rather than
+    // deleted: it costs a few bytes and nothing reads it after this.
+    const legacy = read(LEGACY_KEY);
+    if (!legacy) return null;
+
+    const engine = getEngine("image");
+    return engine ? { image: engine.coerce(legacy) } : null;
   } catch {
     // Private mode, disabled storage, or malformed JSON — defaults are fine.
     return null;
   }
 }
 
-export function saveSettings(options: CompressionOptions) {
+export function saveSettings(settings: StoredSettings) {
   if (typeof window === "undefined") return;
 
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(options));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   } catch {
     // Quota or a blocked storage API. Persisting settings is a convenience.
   }

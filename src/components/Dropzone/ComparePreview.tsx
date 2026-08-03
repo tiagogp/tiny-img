@@ -9,15 +9,16 @@ import {
   useRef,
   useState,
 } from "react";
-import type { CompressionOutcome } from "@/utils/compressImage";
+import type { ImageOutcome } from "@/media/image/compress";
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import { useObjectUrl } from "@/hooks/useObjectUrl";
+import { Image } from "@/components/ui/Image";
 
 interface ComparePreviewProps {
   /** Fires from the dialog's native `close` event — see the effect below. */
   onClose(): void;
   file: File;
-  outcome: CompressionOutcome;
+  outcome: ImageOutcome;
 }
 
 const MIN_SCALE = 1;
@@ -123,7 +124,7 @@ const ComparePreview: FC<ComparePreviewProps> = ({
   const originalUrl = useObjectUrl(file);
   const compressedUrl = useObjectUrl(outcome.file);
 
-  const ratio = outcome.originalWidth / outcome.originalHeight;
+  const ratio = outcome.originalMeta.width / outcome.originalMeta.height;
 
   useEffect(() => {
     dialogRef.current?.showModal();
@@ -361,7 +362,7 @@ const ComparePreview: FC<ComparePreviewProps> = ({
             isZoomed ? (isPanning ? "cursor-grabbing" : "cursor-grab") : ""
           }`}
           style={{
-            aspectRatio: `${outcome.originalWidth} / ${outcome.originalHeight}`,
+            aspectRatio: `${outcome.originalMeta.width} / ${outcome.originalMeta.height}`,
             maxHeight: "60vh",
             touchAction: isZoomed ? "none" : undefined,
           }}
@@ -370,9 +371,7 @@ const ComparePreview: FC<ComparePreviewProps> = ({
               frame's coordinates and the seam sits exactly under the divider. */}
           <div className="absolute inset-0 overflow-hidden">
             {originalUrl && (
-              /* eslint-disable-next-line @next/next/no-img-element --
-                 blob: URLs (see ItemDropzone) — nothing to optimize server-side. */
-              <img
+              <Image
                 src={originalUrl}
                 alt={`${file.name}, original`}
                 className="h-full w-full object-contain"
@@ -387,8 +386,7 @@ const ComparePreview: FC<ComparePreviewProps> = ({
             style={{ clipPath: `inset(0 0 0 ${position}%)` }}
           >
             {compressedUrl && (
-              /* eslint-disable-next-line @next/next/no-img-element -- as above. */
-              <img
+              <Image
                 src={compressedUrl}
                 alt={`${file.name}, compressed`}
                 className="h-full w-full object-contain"
@@ -544,10 +542,10 @@ const ComparePreview: FC<ComparePreviewProps> = ({
           <Metric
             label="Dimensions"
             value={
-              outcome.width !== outcome.originalWidth ||
-              outcome.height !== outcome.originalHeight
-                ? `${outcome.originalWidth}×${outcome.originalHeight} → ${outcome.width}×${outcome.height}`
-                : `${outcome.width}×${outcome.height}`
+              outcome.meta.width !== outcome.originalMeta.width ||
+              outcome.meta.height !== outcome.originalMeta.height
+                ? `${outcome.originalMeta.width}×${outcome.originalMeta.height} → ${outcome.meta.width}×${outcome.meta.height}`
+                : `${outcome.meta.width}×${outcome.meta.height}`
             }
           />
         </div>

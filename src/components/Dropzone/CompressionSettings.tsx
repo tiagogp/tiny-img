@@ -3,41 +3,9 @@
 import { FC, useState } from "react";
 import { Button } from "../ui/Button";
 import { Tag } from "../ui/Tag";
+import type { ImageFormat, ImageOptions } from "@/media/image/options";
 
-/** `""` keeps each image in its original format. */
-export type OutputFormat = "" | "image/webp" | "image/jpeg" | "image/png";
-
-export interface CompressionOptions {
-  /** 0.1 - 1. Only affects lossy formats (JPEG/WebP). */
-  quality: number;
-  /** Largest side in px. `0` keeps the original resolution. */
-  maxDimension: number;
-  /** Max size per image in MB. `0` means no target size. */
-  maxSizeMB: number;
-  /** Re-encode every image to this format. */
-  format: OutputFormat;
-}
-
-/**
- * Format and resolution are deliberately untouched by default. Downscaling a
- * 4000px photo to 1080px, or handing back a `.webp` where a `.png` went in, is
- * a decision with no undo, and a default that quietly makes one for the user is
- * the wrong kind of helpful — both are one tap away below.
- */
-export const DEFAULT_OPTIONS: CompressionOptions = {
-  quality: 0.8,
-  maxDimension: 0,
-  maxSizeMB: 0,
-  format: "",
-};
-
-export const isSameOptions = (a: CompressionOptions, b: CompressionOptions) =>
-  a.quality === b.quality &&
-  a.maxDimension === b.maxDimension &&
-  a.maxSizeMB === b.maxSizeMB &&
-  a.format === b.format;
-
-const FORMAT_PRESETS: { label: string; value: OutputFormat }[] = [
+const FORMAT_PRESETS: { label: string; value: ImageFormat }[] = [
   { label: "Original", value: "" },
   { label: "WebP", value: "image/webp" },
   { label: "JPEG", value: "image/jpeg" },
@@ -53,7 +21,7 @@ const RESOLUTION_PRESETS = [
   { label: "480p", value: 480 },
 ];
 
-const FORMAT_LABELS: Record<OutputFormat, string> = {
+const FORMAT_LABELS: Record<ImageFormat, string> = {
   "": "Original format",
   "image/webp": "WebP",
   "image/jpeg": "JPEG",
@@ -70,7 +38,7 @@ const summarise = ({
   quality,
   maxDimension,
   maxSizeMB,
-}: CompressionOptions) =>
+}: ImageOptions) =>
   [
     FORMAT_LABELS[format],
     format === "image/png"
@@ -88,8 +56,8 @@ const numberInput =
   "h-12 w-32 rounded-sm border border-line bg-surface px-4 text-body text-primary transition-[background-color,border-color] duration-fast ease-standard hover:border-line-strong focus:border-action focus:bg-bg";
 
 interface CompressionSettingsProps {
-  options: CompressionOptions;
-  onChange(options: CompressionOptions): void;
+  options: ImageOptions;
+  onChange(options: ImageOptions): void;
   onApply(): void;
   onReset(): void;
   isDirty: boolean;
@@ -116,7 +84,7 @@ const CompressionSettings: FC<CompressionSettingsProps> = ({
 
   const isLossless = options.format === "image/png";
 
-  const update = (patch: Partial<CompressionOptions>) =>
+  const update = (patch: Partial<ImageOptions>) =>
     onChange({ ...options, ...patch });
 
   return (

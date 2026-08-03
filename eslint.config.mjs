@@ -16,6 +16,22 @@ const config = [
   },
   ...nextCoreWebVitals,
   ...nextTypeScript,
+  {
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "next/image",
+              message:
+                "Use @/components/ui/Image to avoid Vercel Image Optimization usage.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
 
 export default config;

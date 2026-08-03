@@ -46,7 +46,10 @@ export const metadata: Metadata = {
     title: "TinyImg — compress images in your browser",
     description:
       "Compress WebP, PNG and JPEG on your own device. No uploads, no account, no queue.",
-    images: ["/logo.svg"],
+    /* The card itself is `opengraph-image.png` in this folder — Next hashes it
+       into the route and writes the url, type, dimensions and alt text from
+       the file, which no hand-written path can stay in sync with. Same for
+       `twitter-image.png`, `icon.png` and `apple-icon.png`. */
   },
 };
 

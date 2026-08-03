@@ -2,9 +2,11 @@
 
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import { downloadBlob } from "@/utils/downloadBlob";
-import type { CompressionOutcome } from "@/utils/compressImage";
+import type { MediaOutcome } from "@/media/types";
+import { isImageOutcome } from "@/media/image/engine";
 import { useThumbnail } from "@/hooks/useThumbnail";
 import { FC, memo, useState } from "react";
+import { Image } from "@/components/ui/Image";
 import ComparePreview from "./ComparePreview";
 
 interface ItemDropzoneProps {
@@ -13,7 +15,7 @@ interface ItemDropzoneProps {
   file: File;
   deleteFile(id: string): void;
   retryFile(id: string): void;
-  actualItem?: CompressionOutcome;
+  actualItem?: MediaOutcome;
   isProcessing?: boolean;
   hasFailed?: boolean;
   /** Why it failed, so the row says more than "Failed". */
@@ -62,15 +64,19 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
     if (!actualItem) return;
 
     // The page promises every file keeps its name, so no prefix is added here
-    // — `compressImage` has already corrected the extension if the format
-    // changed, and the ZIP path uses the same name.
+    // — the engine has already corrected the extension if the format changed,
+    // and the ZIP path uses the same name.
     downloadBlob(actualItem.file, actualItem.file.name);
   };
 
+  // The dimension line and the pixel-zoom comparison only mean something for a
+  // still image — time-based media gets its own surfaces (see ROADMAP §6.4/6.6).
+  const image = actualItem && isImageOutcome(actualItem) ? actualItem : null;
+
   const wasResized =
-    !!actualItem &&
-    (actualItem.width !== actualItem.originalWidth ||
-      actualItem.height !== actualItem.originalHeight);
+    !!image &&
+    (image.meta.width !== image.originalMeta.width ||
+      image.meta.height !== image.originalMeta.height);
 
   const savedPercent =
     actualItem && !actualItem.unchanged
@@ -93,14 +99,10 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
         {/* Decorative: the filename beside it is the accessible name (§12.7). */}
         <span className="h-10 w-10 shrink-0 overflow-hidden rounded-xs bg-surface">
           {thumbnailUrl && (
-            /* eslint-disable-next-line @next/next/no-img-element --
-               a blob: URL for a file that never leaves the tab; there is
-               nothing for the image optimizer to fetch or cache. */
-            <img
+            <Image
               src={thumbnailUrl}
               alt=""
               loading="lazy"
-              decoding="async"
               className="h-full w-full object-cover"
             />
           )}
@@ -140,11 +142,11 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
         )}
       </div>
 
-      {actualItem && (
+      {image && (
         <p data-numeric className="font-mono text-caption text-muted">
           {wasResized
-            ? `${actualItem.originalWidth}×${actualItem.originalHeight} → ${actualItem.width}×${actualItem.height}`
-            : `${actualItem.width}×${actualItem.height}`}
+            ? `${image.originalMeta.width}×${image.originalMeta.height} → ${image.meta.width}×${image.meta.height}`
+            : `${image.meta.width}×${image.meta.height}`}
         </p>
       )}
 
@@ -178,19 +180,19 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
       )}
 
       <div className="ml-auto flex items-center gap-2">
+        {image && (
+          <button
+            type="button"
+            onClick={() => setIsComparing(true)}
+            className={rowButton}
+          >
+            Compare
+          </button>
+        )}
         {actualItem && (
-          <>
-            <button
-              type="button"
-              onClick={() => setIsComparing(true)}
-              className={rowButton}
-            >
-              Compare
-            </button>
-            <button type="button" onClick={handleDownload} className={rowButton}>
-              Download
-            </button>
-          </>
+          <button type="button" onClick={handleDownload} className={rowButton}>
+            Download
+          </button>
         )}
         {hasFailed && (
           <button
@@ -221,11 +223,11 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
         </button>
       </div>
 
-      {actualItem && isComparing && (
+      {image && isComparing && (
         <ComparePreview
           onClose={() => setIsComparing(false)}
           file={file}
-          outcome={actualItem}
+          outcome={image}
         />
       )}
     </li>

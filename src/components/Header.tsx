@@ -13,6 +13,7 @@ import {
 } from "motion/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "./ui/Button";
+import { Image } from "./ui/Image";
 import { ThemeToggle } from "./ThemeToggle";
 import { openFilePicker } from "@/utils/openFilePicker";
 
@@ -107,11 +108,19 @@ function useActiveSection(ids: string[]) {
   return activeId;
 }
 
+/** The white cut of the mark, not the black one: the pill is `bg-ink`, and the
+ *  ink family is only shifted between themes rather than flipped (tokens.css
+ *  §DARK THEME), so this surface is dark under both and there is nothing to
+ *  swap on. Intrinsic dimensions are the file's own — the browser needs the
+ *  ratio to reserve the box before the PNG lands, and CSS takes it from there. */
 const Wordmark = () => (
-  <span className="flex items-center gap-2 font-display text-h6 font-semibold text-inverse">
-    <span aria-hidden="true" className="block h-2 w-2 rounded-pill bg-amber" />
-    TinyImg
-  </span>
+  <Image
+    src="/logo-tinyimg-dark-mode.png"
+    alt="TinyImg"
+    width={926}
+    height={296}
+    className="h-6 w-auto md:h-7"
+  />
 );
 
 export const Header = () => {

@@ -16,34 +16,49 @@ import {
   filterFiles,
 } from "../../utils/verifyFile";
 import ItemDropzone from "./ItemDropzone";
-import CompressionSettings, {
-  CompressionOptions,
-  DEFAULT_OPTIONS,
-  isSameOptions,
-} from "./CompressionSettings";
+import CompressionSettings from "./CompressionSettings";
 import JSZip from "jszip";
+import { Image } from "@/components/ui/Image";
 import { Counter } from "../Counter";
+import { getEngine } from "@/media/registry";
+import type { MediaKind, MediaOutcome } from "@/media/types";
 import {
-  CompressionOutcome,
-  compressImage,
-  describeCompressionError,
-} from "@/utils/compressImage";
+  DEFAULT_IMAGE_OPTIONS,
+  isSameImageOptions,
+  type ImageOptions,
+} from "@/media/image/options";
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import { downloadBlob, uniqueName } from "@/utils/downloadBlob";
 import { FILE_INPUT_ID } from "@/utils/openFilePicker";
-import { loadSettings, saveSettings } from "@/utils/settingsStorage";
+import {
+  loadSettings,
+  saveSettings,
+  type StoredSettings,
+} from "@/utils/settingsStorage";
 import { Button } from "../ui/Button";
 
-/** Cap the pool so a 16-core machine doesn't spawn 16 decoder workers at once. */
+/** Cap the pool so a 16-core machine doesn't spawn 16 decoder workers at once.
+ *  Each engine caps its own kind on top of this — see `MediaEngine.concurrency`. */
 const MAX_CONCURRENCY = 8;
+
+const ARTWORK_SOURCES = [
+  {
+    type: "image/avif",
+    srcSet:
+      "/artwork/poster-800.avif 800w, /artwork/poster-1312.avif 1312w, /artwork/poster-1672.avif 1672w",
+    sizes: "(min-width: 768px) 50vw, 100vw",
+  },
+] as const;
 
 interface QueueItem {
   id: string;
   file: File;
+  /** Resolved once on accept, so the pool never re-sniffs a file it holds. */
+  kind: MediaKind;
 }
 
 /** `undefined` = still queued, `null` = failed. */
-type ProcessResult = CompressionOutcome | null | undefined;
+type ProcessResult = MediaOutcome | null | undefined;
 
 type ResultMap = Record<string, ProcessResult>;
 
@@ -81,14 +96,18 @@ export const Dropzone = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [notice, setNotice] = useState("");
-  const [draftOptions, setDraftOptions] =
-    useState<CompressionOptions>(DEFAULT_OPTIONS);
-  const [appliedOptions, setAppliedOptions] =
-    useState<CompressionOptions>(DEFAULT_OPTIONS);
+  const [draftOptions, setDraftOptions] = useState<ImageOptions>(
+    DEFAULT_IMAGE_OPTIONS
+  );
+  const [appliedOptions, setAppliedOptions] = useState<ImageOptions>(
+    DEFAULT_IMAGE_OPTIONS
+  );
 
   const itemsRef = useRef<QueueItem[]>([]);
   const resultsRef = useRef<ResultMap>({});
-  const optionsRef = useRef<CompressionOptions>(DEFAULT_OPTIONS);
+  /** Options per kind, so a mixed queue never runs one kind's settings on
+   *  another. Only the image panel exists today, so only `image` is filled. */
+  const optionsRef = useRef<StoredSettings>({ image: DEFAULT_IMAGE_OPTIONS });
   const isRunningRef = useRef(false);
   /** Read inside the pool loop so a stop takes effect between images. */
   const isPausedRef = useRef(false);
@@ -186,37 +205,67 @@ export const Dropzone = () => {
     setIsPaused(false);
   }, []);
 
+  /**
+   * "Pending" has to mean *the pool can do it*, not merely "has no result yet".
+   * `runQueue` re-runs while this is true, so an item nothing can claim — a kind
+   * with no registered engine — would spin that loop forever.
+   */
+  const isClaimable = useCallback(
+    (item: QueueItem) =>
+      resultsRef.current[item.id] === undefined &&
+      !inFlightRef.current.has(item.id) &&
+      !!getEngine(item.kind),
+    []
+  );
+
   const hasPending = useCallback(
-    () =>
-      itemsRef.current.some(
-        (item) =>
-          resultsRef.current[item.id] === undefined &&
-          !inFlightRef.current.has(item.id)
-      ),
+    () => itemsRef.current.some(isClaimable),
+    [isClaimable]
+  );
+
+  /**
+   * Counted from the queue rather than kept in its own ref: a second source of
+   * truth for what is running is a second thing that can drift out of sync, and
+   * a hundred rows is nothing to walk.
+   */
+  const inFlightOfKind = useCallback(
+    (kind: MediaKind) =>
+      itemsRef.current.filter(
+        (item) => item.kind === kind && inFlightRef.current.has(item.id)
+      ).length,
     []
   );
 
   /**
-   * One worker of the pool: keeps claiming the next queued image until nothing
+   * One worker of the pool: keeps claiming the next queued file until nothing
    * is left, reading files and options from refs so appending files or applying
    * new settings mid-run is picked up instead of racing with it.
+   *
+   * A worker that can claim nothing returns rather than spinning. That is safe
+   * because the only reason to be blocked is another worker holding this kind's
+   * last slot — and that worker's own loop picks the rest up as it finishes.
    */
   const drain = useCallback(async () => {
     while (true) {
-      // Checked here, not only on abort: aborting a single image would
+      // Checked here, not only on abort: aborting a single file would
       // otherwise just hand the worker the next one in the queue.
       if (isPausedRef.current) return;
 
-      const next = itemsRef.current.find(
-        (item) =>
-          resultsRef.current[item.id] === undefined &&
-          !inFlightRef.current.has(item.id)
-      );
+      const next = itemsRef.current.find((item) => {
+        if (!isClaimable(item)) return false;
+
+        // Eight images at once is fine; eight videos is eight WASM heaps.
+        const engine = getEngine(item.kind);
+        return !!engine && inFlightOfKind(item.kind) < engine.concurrency;
+      });
 
       if (!next) return;
 
+      const engine = getEngine(next.kind);
+      if (!engine) return;
+
       const runId = runIdRef.current;
-      const options = optionsRef.current;
+      const options = optionsRef.current[next.kind] ?? engine.defaults;
       const controller = new AbortController();
 
       inFlightRef.current.add(next.id);
@@ -227,13 +276,13 @@ export const Dropzone = () => {
       let failure = "";
 
       try {
-        result = await compressImage(next.file, options, {
+        result = await engine.run(next.file, options, {
           signal: controller.signal,
           onProgress: (value) => reportProgress(next.id, value),
         });
       } catch (error) {
         if (!controller.signal.aborted) {
-          failure = describeCompressionError(error);
+          failure = engine.describeError(error);
           console.error(`Error processing file ${next.file.name}:`, error);
         }
       } finally {
@@ -258,7 +307,13 @@ export const Dropzone = () => {
 
       updateResults((prev) => ({ ...prev, [next.id]: result }));
     }
-  }, [reportProgress, syncProcessing, updateResults]);
+  }, [
+    inFlightOfKind,
+    isClaimable,
+    reportProgress,
+    syncProcessing,
+    updateResults,
+  ]);
 
   const runQueue = useCallback(async () => {
     if (isRunningRef.current) return;
@@ -302,12 +357,12 @@ export const Dropzone = () => {
    *  the only point where the stored value is safely available. */
   useEffect(() => {
     const stored = loadSettings();
-    if (!stored) return;
+    if (!stored?.image) return;
 
-    optionsRef.current = stored;
+    optionsRef.current = { ...optionsRef.current, ...stored };
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDraftOptions(stored);
-    setAppliedOptions(stored);
+    setDraftOptions(stored.image);
+    setAppliedOptions(stored.image);
   }, []);
 
   const addFiles = useCallback(
@@ -325,7 +380,11 @@ export const Dropzone = () => {
       isPausedRef.current = false;
       setIsPaused(false);
 
-      const queued = accepted.map((file) => ({ id: createId(), file }));
+      const queued = accepted.map(({ file, kind }) => ({
+        id: createId(),
+        file,
+        kind,
+      }));
       shouldScrollRef.current = true;
       updateItems([...itemsRef.current, ...queued]);
     },
@@ -421,9 +480,9 @@ export const Dropzone = () => {
   const applySettings = useCallback(() => {
     cancelAll();
     resume();
-    optionsRef.current = draftOptions;
+    optionsRef.current = { ...optionsRef.current, image: draftOptions };
     setAppliedOptions(draftOptions);
-    saveSettings(draftOptions);
+    saveSettings(optionsRef.current);
     updateResults(() => ({}));
     setErrors({});
     clearProgress();
@@ -434,18 +493,18 @@ export const Dropzone = () => {
    * setting — otherwise changing a value before dropping anything would silently
    * compress the first batch with the previous one.
    */
-  const changeOptions = useCallback((next: CompressionOptions) => {
+  const changeOptions = useCallback((next: ImageOptions) => {
     setDraftOptions(next);
 
     if (itemsRef.current.length === 0) {
-      optionsRef.current = next;
+      optionsRef.current = { ...optionsRef.current, image: next };
       setAppliedOptions(next);
-      saveSettings(next);
+      saveSettings(optionsRef.current);
     }
   }, []);
 
   const resetSettings = useCallback(() => {
-    changeOptions(DEFAULT_OPTIONS);
+    changeOptions(DEFAULT_IMAGE_OPTIONS);
   }, [changeOptions]);
 
   const deleteFile = useCallback(
@@ -515,7 +574,7 @@ export const Dropzone = () => {
   // One pass over the queue rather than three: this runs on every progress
   // flush, so it is the hot path while a batch is compressing.
   const { doneResults, pendingCount, failedCount } = useMemo(() => {
-    const done: CompressionOutcome[] = [];
+    const done: MediaOutcome[] = [];
     let pending = 0;
     let failed = 0;
 
@@ -592,27 +651,21 @@ export const Dropzone = () => {
         >
           {/* Decorative (§12.7): the panel beside it carries every word that
               matters, so an alt would only repeat the caption to a screen
-              reader. Pre-encoded rather than run through next/image — `sharp`
-              is not installed, and a compression tool shipping a 2.5 MB PNG
-              would be a poor advertisement (source: assets/poster.png). */}
-          <picture className="relative block h-48 w-full shrink-0 md:h-auto md:w-1/2">
-            <source
-              type="image/avif"
-              srcSet="/artwork/poster-800.avif 800w, /artwork/poster-1312.avif 1312w, /artwork/poster-1672.avif 1672w"
-              sizes="(min-width: 768px) 50vw, 100vw"
-            />
-            <img
-              src="/artwork/poster-1312.webp"
-              srcSet="/artwork/poster-800.webp 800w, /artwork/poster-1312.webp 1312w, /artwork/poster-1672.webp 1672w"
-              sizes="(min-width: 768px) 50vw, 100vw"
-              alt=""
-              width={1672}
-              height={941}
-              loading="eager"
-              decoding="async"
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          </picture>
+              reader. The pre-encoded variants go straight to the browser via
+              our native Image component, with no Vercel image transformation. */}
+          <Image
+            pictureClassName="relative block h-48 w-full shrink-0 md:h-auto md:w-1/2"
+            sources={ARTWORK_SOURCES}
+            src="/artwork/poster-1312.webp"
+            srcSet="/artwork/poster-800.webp 800w, /artwork/poster-1312.webp 1312w, /artwork/poster-1672.webp 1672w"
+            sizes="(min-width: 768px) 50vw, 100vw"
+            alt=""
+            width={1672}
+            height={941}
+            loading="eager"
+            fetchPriority="high"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
 
           <div className="flex flex-1 flex-col justify-end p-8 md:p-12">
             <p className="font-mono text-eyebrow uppercase text-muted">
@@ -701,7 +754,7 @@ export const Dropzone = () => {
         onChange={changeOptions}
         onApply={applySettings}
         onReset={resetSettings}
-        isDirty={!isSameOptions(draftOptions, appliedOptions)}
+        isDirty={!isSameImageOptions(draftOptions, appliedOptions)}
         fileCount={items.length}
         isProcessing={isProcessing}
       />
