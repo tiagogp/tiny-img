@@ -15,7 +15,7 @@
 # production
 /build
 
-# vendored at build time by scripts/vendor-image-compression.mjs
+# vendored at build time by scripts/vendor-assets.mjs
 /public/vendor
 
 # misc

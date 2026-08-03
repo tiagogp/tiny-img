@@ -1,5 +1,6 @@
 import type { MediaEngine, MediaOutcome } from "../types";
 import { compressImage, describeImageError, type ImageOutcome } from "./compress";
+import { HEIC_EXTENSIONS, isHeicFile } from "./heic";
 import {
   DEFAULT_IMAGE_OPTIONS,
   coerceImageOptions,
@@ -10,10 +11,14 @@ import {
 /** Cap the pool so a 16-core machine doesn't spawn 16 decoder workers at once. */
 const MAX_IMAGE_CONCURRENCY = 8;
 
+const STANDARD_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 export const imageEngine: MediaEngine<ImageOptions> = {
   kind: "image",
-  accepts: ["image/jpeg", "image/png", "image/webp"],
-  formatsLabel: "JPEG, PNG or WebP",
+  accepts: STANDARD_MIME_TYPES,
+  acceptExtensions: HEIC_EXTENSIONS,
+  matches: (file) => STANDARD_MIME_TYPES.includes(file.type) || isHeicFile(file),
+  formatsLabel: "JPEG, PNG, WebP or HEIC",
   maxBytes: 100 * 1024 * 1024,
   concurrency: MAX_IMAGE_CONCURRENCY,
   defaults: DEFAULT_IMAGE_OPTIONS,

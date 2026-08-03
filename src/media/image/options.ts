@@ -1,8 +1,13 @@
 /** `""` keeps each image in its original format. */
-export type ImageFormat = "" | "image/webp" | "image/jpeg" | "image/png";
+export type ImageFormat =
+  | ""
+  | "image/webp"
+  | "image/jpeg"
+  | "image/png"
+  | "image/avif";
 
 export interface ImageOptions {
-  /** 0.1 - 1. Only affects lossy formats (JPEG/WebP). */
+  /** 0.1 - 1. Only affects lossy formats (JPEG/WebP/AVIF). */
   quality: number;
   /** Largest side in px. `0` keeps the original resolution. */
   maxDimension: number;
@@ -10,6 +15,20 @@ export interface ImageOptions {
   maxSizeMB: number;
   /** Re-encode every image to this format. */
   format: ImageFormat;
+  /**
+   * Strips EXIF even when it could otherwise be kept. Preserving is only ever
+   * possible for a JPEG staying a JPEG — this only ever narrows that, never
+   * widens it.
+   */
+  stripExif: boolean;
+  /**
+   * Extra output sizes (largest side, px), generated alongside the normal
+   * `maxDimension` output. Fixed per batch at the moment files are dropped —
+   * changing this list re-applies to the next batch, not to files already in
+   * the queue, since resizing the queue itself on every settings change would
+   * make "Apply to all files" ambiguous about which rows it owns.
+   */
+  extraSizes: number[];
 }
 
 /**
@@ -23,6 +42,8 @@ export const DEFAULT_IMAGE_OPTIONS: ImageOptions = {
   maxDimension: 0,
   maxSizeMB: 0,
   format: "",
+  stripExif: false,
+  extraSizes: [],
 };
 
 export const IMAGE_FORMATS: ImageFormat[] = [
@@ -30,13 +51,17 @@ export const IMAGE_FORMATS: ImageFormat[] = [
   "image/webp",
   "image/jpeg",
   "image/png",
+  "image/avif",
 ];
 
 export const isSameImageOptions = (a: ImageOptions, b: ImageOptions) =>
   a.quality === b.quality &&
   a.maxDimension === b.maxDimension &&
   a.maxSizeMB === b.maxSizeMB &&
-  a.format === b.format;
+  a.format === b.format &&
+  a.stripExif === b.stripExif &&
+  a.extraSizes.length === b.extraSizes.length &&
+  a.extraSizes.every((size, index) => size === b.extraSizes[index]);
 
 /**
  * Anything can be in localStorage — an older shape, a half-written value, a
@@ -73,5 +98,21 @@ export function coerceImageOptions(raw: unknown): ImageOptions {
     ? (value.format as ImageFormat)
     : DEFAULT_IMAGE_OPTIONS.format;
 
-  return { quality, maxDimension, maxSizeMB, format };
+  const stripExif =
+    typeof value.stripExif === "boolean"
+      ? value.stripExif
+      : DEFAULT_IMAGE_OPTIONS.stripExif;
+
+  const extraSizes = Array.isArray(value.extraSizes)
+    ? [
+        ...new Set(
+          value.extraSizes.filter(
+            (size): size is number =>
+              typeof size === "number" && Number.isFinite(size) && size > 0
+          )
+        ),
+      ]
+    : DEFAULT_IMAGE_OPTIONS.extraSizes;
+
+  return { quality, maxDimension, maxSizeMB, format, stripExif, extraSizes };
 }

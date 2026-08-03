@@ -15,11 +15,15 @@ const ENGINES: MediaEngine<MediaOptions>[] = [imageEngine];
 export const getEngine = (kind: MediaKind) =>
   ENGINES.find((engine) => engine.kind === kind);
 
+function engineMatches(engine: MediaEngine<MediaOptions>, file: File) {
+  return engine.matches
+    ? engine.matches(file)
+    : engine.accepts.includes(file.type);
+}
+
 /** `null` for anything no registered engine claims — including a blank type. */
 export function detectKind(file: File): MediaKind | null {
-  const engine = ENGINES.find((candidate) =>
-    candidate.accepts.includes(file.type)
-  );
+  const engine = ENGINES.find((candidate) => engineMatches(candidate, file));
 
   return engine?.kind ?? null;
 }
@@ -29,9 +33,10 @@ export const engineForFile = (file: File) => {
   return kind ? getEngine(kind) : undefined;
 };
 
-export const ACCEPT_ATTRIBUTE = ENGINES.flatMap(
-  (engine) => engine.accepts
-).join(",");
+export const ACCEPT_ATTRIBUTE = ENGINES.flatMap((engine) => [
+  ...engine.accepts,
+  ...(engine.acceptExtensions ?? []),
+]).join(",");
 
 /** "JPEG, PNG or WebP" today; "…, or an MP4 or WebM" once video is registered. */
 export const SUPPORTED_FORMATS_LABEL = ENGINES.map(

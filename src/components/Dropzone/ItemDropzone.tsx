@@ -4,6 +4,7 @@ import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import { downloadBlob } from "@/utils/downloadBlob";
 import type { MediaOutcome } from "@/media/types";
 import { isImageOutcome } from "@/media/image/engine";
+import { isHeicFile } from "@/media/image/heic";
 import { useThumbnail } from "@/hooks/useThumbnail";
 import { FC, memo, useState } from "react";
 import { Image } from "@/components/ui/Image";
@@ -38,6 +39,15 @@ const Status: FC<{ dotClass: string; label: string; toneClass?: string }> = ({
 
 const rowButton =
   "inline-flex h-8 items-center rounded-pill border border-line px-4 text-body-sm text-secondary transition-[color,background-color,border-color] duration-fast ease-standard hover:border-line-strong hover:bg-surface hover:text-primary";
+
+/** HEIC always leaves as something else — there is no HEIC output format —
+ *  so the row can always name the real target once a result exists. */
+const OUTPUT_FORMAT_LABELS: Record<string, string> = {
+  "image/jpeg": "JPEG",
+  "image/png": "PNG",
+  "image/webp": "WebP",
+  "image/avif": "AVIF",
+};
 
 const ItemDropzone: FC<ItemDropzoneProps> = ({
   file,
@@ -77,6 +87,8 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
     !!image &&
     (image.meta.width !== image.originalMeta.width ||
       image.meta.height !== image.originalMeta.height);
+
+  const isHeicSource = isHeicFile(file);
 
   const savedPercent =
     actualItem && !actualItem.unchanged
@@ -147,6 +159,14 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
           {wasResized
             ? `${image.originalMeta.width}×${image.originalMeta.height} → ${image.meta.width}×${image.meta.height}`
             : `${image.meta.width}×${image.meta.height}`}
+        </p>
+      )}
+
+      {isHeicSource && (
+        <p className="font-mono text-caption text-muted">
+          {image
+            ? `HEIC → ${OUTPUT_FORMAT_LABELS[image.file.type] ?? "JPEG"}`
+            : "HEIC"}
         </p>
       )}
 

@@ -39,6 +39,17 @@ export interface MediaEngine<Options> {
   kind: MediaKind;
   /** MIME types accepted from a drop or the file picker. */
   accepts: readonly string[];
+  /**
+   * Extra `accept` entries beyond MIME types — file extensions, for formats
+   * browsers report inconsistently (HEIC is frequently `""` or
+   * `application/octet-stream` from an OS file picker).
+   */
+  acceptExtensions?: readonly string[];
+  /**
+   * Overrides MIME-only matching for a format whose `file.type` can't be
+   * trusted. Falls back to `accepts.includes(file.type)` when omitted.
+   */
+  matches?(file: File): boolean;
   /** Those types as a phrase, for the copy that explains a rejection. */
   formatsLabel: string;
   /** Per-kind: a 2 GB video and a 2 GB JPEG are not the same ask of a browser. */

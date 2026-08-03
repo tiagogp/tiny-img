@@ -55,6 +55,12 @@ interface QueueItem {
   file: File;
   /** Resolved once on accept, so the pool never re-sniffs a file it holds. */
   kind: MediaKind;
+  /**
+   * Set only on rows fanned out from "Additional sizes" — the same source
+   * file, compressed again at this max dimension instead of the shared
+   * setting. Frozen at drop time; see `addFiles`.
+   */
+  sizeOverride?: number;
 }
 
 /** `undefined` = still queued, `null` = failed. */
@@ -83,6 +89,15 @@ function getConcurrency() {
 /** A drag only counts if it is carrying files — text selections drag too. */
 function isFileDrag(transfer: DataTransfer | null) {
   return Array.from(transfer?.types ?? []).includes("Files");
+}
+
+/** Distinguishes the extra-size outputs of one source file from each other
+ *  and from the base row — otherwise every fanned row shares one filename. */
+function suffixFilename(name: string, suffix: string) {
+  const dot = name.lastIndexOf(".");
+  return dot === -1
+    ? `${name}-${suffix}`
+    : `${name.slice(0, dot)}-${suffix}${name.slice(dot)}`;
 }
 
 export const Dropzone = () => {
@@ -265,7 +280,10 @@ export const Dropzone = () => {
       if (!engine) return;
 
       const runId = runIdRef.current;
-      const options = optionsRef.current[next.kind] ?? engine.defaults;
+      const baseOptions = optionsRef.current[next.kind] ?? engine.defaults;
+      const options = next.sizeOverride
+        ? { ...baseOptions, maxDimension: next.sizeOverride }
+        : baseOptions;
       const controller = new AbortController();
 
       inFlightRef.current.add(next.id);
@@ -280,6 +298,22 @@ export const Dropzone = () => {
           signal: controller.signal,
           onProgress: (value) => reportProgress(next.id, value),
         });
+
+        // The engine has no notion of "extra sizes" — it only sees a
+        // `maxDimension` — so the rename that keeps fanned rows from
+        // colliding happens here. Skipped when the encode was a no-op: that
+        // file is the untouched original, and a size suffix on it would claim
+        // a resize that never happened.
+        if (result && next.sizeOverride && !result.unchanged) {
+          result = {
+            ...result,
+            file: new File(
+              [result.file],
+              suffixFilename(result.file.name, `${next.sizeOverride}px`),
+              { type: result.file.type, lastModified: result.file.lastModified }
+            ),
+          };
+        }
       } catch (error) {
         if (!controller.signal.aborted) {
           failure = engine.describeError(error);
@@ -380,11 +414,21 @@ export const Dropzone = () => {
       isPausedRef.current = false;
       setIsPaused(false);
 
-      const queued = accepted.map(({ file, kind }) => ({
-        id: createId(),
-        file,
-        kind,
-      }));
+      // Extra sizes fan out into sibling rows at drop time, using whatever is
+      // currently applied — not the draft — so this matches every other
+      // setting a fresh drop picks up. The list is fixed for this batch: a
+      // later change to "Additional sizes" governs the next batch, not rows
+      // already queued (see `ImageOptions.extraSizes`).
+      const queued: QueueItem[] = [];
+      for (const { file, kind } of accepted) {
+        queued.push({ id: createId(), file, kind });
+
+        const extraSizes =
+          kind === "image" ? optionsRef.current.image?.extraSizes ?? [] : [];
+        for (const sizeOverride of extraSizes) {
+          queued.push({ id: createId(), file, kind, sizeOverride });
+        }
+      }
       shouldScrollRef.current = true;
       updateItems([...itemsRef.current, ...queued]);
     },

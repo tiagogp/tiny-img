@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { decodeHeic, isHeicFile } from "@/media/image/heic";
 
 /**
  * The row shows the source image in a 40px slot. Pointing an `<img>` straight at
@@ -120,7 +121,16 @@ export function useThumbnail(file: Blob | undefined) {
 
       try {
         if (cancelled) return;
-        publish(await renderThumbnail(file));
+
+        // No browser decodes HEIC via `createImageBitmap` — route it through
+        // the same decoder the compression step uses before the usual crop.
+        const source =
+          file instanceof File && isHeicFile(file)
+            ? await decodeHeic(file)
+            : file;
+
+        if (cancelled) return;
+        publish(await renderThumbnail(source));
       } catch {
         // A file the decoder rejects has no thumbnail — the row still has its
         // name, and compression will report the real error separately.

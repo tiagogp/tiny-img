@@ -10,6 +10,7 @@ const FORMAT_PRESETS: { label: string; value: ImageFormat }[] = [
   { label: "WebP", value: "image/webp" },
   { label: "JPEG", value: "image/jpeg" },
   { label: "PNG", value: "image/png" },
+  { label: "AVIF", value: "image/avif" },
 ];
 
 const RESOLUTION_PRESETS = [
@@ -26,6 +27,7 @@ const FORMAT_LABELS: Record<ImageFormat, string> = {
   "image/webp": "WebP",
   "image/jpeg": "JPEG",
   "image/png": "PNG",
+  "image/avif": "AVIF",
 };
 
 /**
@@ -38,6 +40,7 @@ const summarise = ({
   quality,
   maxDimension,
   maxSizeMB,
+  stripExif,
 }: ImageOptions) =>
   [
     FORMAT_LABELS[format],
@@ -46,6 +49,7 @@ const summarise = ({
       : `${Math.round(quality * 100)}% quality`,
     maxDimension === 0 ? "original size" : `max ${maxDimension} px`,
     maxSizeMB > 0 ? `up to ${maxSizeMB} MB each` : null,
+    stripExif ? "EXIF stripped" : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -142,7 +146,9 @@ const CompressionSettings: FC<CompressionSettingsProps> = ({
             <p className={helpText}>
               {options.format === "image/webp"
                 ? "WebP is usually the smallest, for photos and graphics alike."
-                : "Converting to WebP usually saves another 25–35%."}
+                : options.format === "image/avif"
+                ? "AVIF is usually smaller still, though encoding takes longer."
+                : "Converting to WebP or AVIF usually saves another 25–50%."}
             </p>
           </fieldset>
 
@@ -219,6 +225,62 @@ const CompressionSettings: FC<CompressionSettingsProps> = ({
             </div>
             <p className={helpText}>
               Images smaller than this are never scaled up.
+            </p>
+          </fieldset>
+
+          <fieldset className="col-span-full md:col-span-4 lg:col-span-6">
+            <legend className={fieldLabel}>Additional sizes</legend>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {RESOLUTION_PRESETS.filter((preset) => preset.value > 0).map(
+                (preset) => {
+                  const selected = options.extraSizes.includes(preset.value);
+
+                  return (
+                    <Tag
+                      key={preset.label}
+                      selected={selected}
+                      onClick={() =>
+                        update({
+                          extraSizes: selected
+                            ? options.extraSizes.filter(
+                                (size) => size !== preset.value
+                              )
+                            : [...options.extraSizes, preset.value],
+                        })
+                      }
+                    >
+                      {preset.label}
+                    </Tag>
+                  );
+                }
+              )}
+            </div>
+            <p className={helpText}>
+              Exports an extra file at each size picked, alongside the max
+              resolution above. Applies to files you drop after this — not to
+              files already in the queue.
+            </p>
+          </fieldset>
+
+          <fieldset className="col-span-full md:col-span-4 lg:col-span-6">
+            <legend className={fieldLabel}>Photo metadata</legend>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Tag
+                selected={!options.stripExif}
+                onClick={() => update({ stripExif: false })}
+              >
+                Keep EXIF
+              </Tag>
+              <Tag
+                selected={options.stripExif}
+                onClick={() => update({ stripExif: true })}
+              >
+                Strip EXIF
+              </Tag>
+            </div>
+            <p className={helpText}>
+              Only applies when the output stays JPEG — every other format
+              always drops EXIF.
             </p>
           </fieldset>
 

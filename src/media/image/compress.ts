@@ -1,9 +1,11 @@
 import imageCompression from "browser-image-compression";
 import type { EngineHandlers, MediaMeta, MediaOutcome } from "../types";
+import { encodeAvif } from "./avif";
+import { decodeHeic, isHeicFile } from "./heic";
 import type { ImageOptions } from "./options";
 
 /**
- * Self-hosted copy of the lib, vendored by `scripts/vendor-image-compression.mjs`.
+ * Self-hosted copy of the lib, vendored by `scripts/vendor-assets.mjs`.
  * The default value points at jsDelivr, which the worker fetches at runtime.
  */
 const LIB_URL = "/vendor/browser-image-compression.js";
@@ -12,6 +14,7 @@ const EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+  "image/avif": "avif",
 };
 
 export interface Dimensions {
@@ -93,6 +96,12 @@ function renameForType(name: string, type: string) {
 export function describeImageError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error ?? "");
 
+  if (/heic|heif/i.test(message)) {
+    return "This HEIC file could not be converted — it may be corrupt or use an unsupported variant.";
+  }
+  if (/avif encoding/i.test(message)) {
+    return "AVIF encoding failed in this browser. Try a different output format.";
+  }
   if (/canvas|tainted|securityerror/i.test(message)) {
     return "The browser refused to read this image's pixels.";
   }
@@ -109,19 +118,115 @@ export function describeImageError(error: unknown): string {
   return message || "Compression failed for an unknown reason.";
 }
 
+/**
+ * Shared by both encode paths. Re-encoding a PNG, or touching an
+ * already-optimised JPEG, routinely produces a bigger file — but a HEIC
+ * source is exempt: the whole reason it was dropped is to leave as a JPEG or
+ * WebP, and HEIC's own compression often beats a re-encode anyway, so keeping
+ * the untouched original would silently defeat the feature.
+ */
+function finalizeOutcome(
+  original: Dimensions,
+  file: File,
+  output: File,
+  resultMeta: Dimensions
+): ImageOutcome {
+  if (!isHeicFile(file) && output.size >= file.size) {
+    return {
+      kind: "image",
+      file,
+      originalSize: file.size,
+      meta: original,
+      originalMeta: original,
+      unchanged: true,
+    };
+  }
+
+  return {
+    kind: "image",
+    file: output,
+    originalSize: file.size,
+    meta: resultMeta,
+    originalMeta: original,
+    unchanged: false,
+  };
+}
+
+/**
+ * AVIF bypasses `browser-image-compression` entirely — it can't reliably
+ * produce AVIF cross-browser (see `avif.ts`) — so resize and encode happen by
+ * hand here: decode, draw at the target size, hand the raw pixels to the
+ * WASM encoder.
+ */
+async function compressToAvif(
+  original: Dimensions,
+  file: File,
+  source: File,
+  options: ImageOptions,
+  targetType: string
+): Promise<ImageOutcome> {
+  const shouldResize =
+    options.maxDimension > 0 && options.maxDimension < Math.max(original.width, original.height);
+  const target = shouldResize
+    ? predictDimensions(original, options.maxDimension)
+    : original;
+
+  const bitmap = await createImageBitmap(source, {
+    imageOrientation: "from-image",
+  });
+  const canvas = new OffscreenCanvas(target.width, target.height);
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    bitmap.close();
+    throw new Error("The browser refused to read this image's pixels.");
+  }
+
+  context.drawImage(bitmap, 0, 0, target.width, target.height);
+  bitmap.close();
+
+  const imageData = context.getImageData(0, 0, target.width, target.height);
+  const avifBlob = await encodeAvif(imageData, options.quality);
+
+  const output = new File([avifBlob], renameForType(file.name, targetType), {
+    type: targetType,
+    lastModified: file.lastModified,
+  });
+
+  return finalizeOutcome(original, file, output, target);
+}
+
 export async function compressImage(
   file: File,
   options: ImageOptions,
   { signal, onProgress }: EngineHandlers
 ): Promise<ImageOutcome> {
-  const original = await getFileDimensions(file);
+  // Every downstream step — resize, quality, target-format conversion, EXIF —
+  // then runs on a plain JPEG exactly as it would on any other source. This is
+  // the only HEIC-specific step in the whole pipeline.
+  const source = isHeicFile(file) ? await decodeHeic(file) : file;
+
+  const original = await getFileDimensions(source);
   const largestSide = Math.max(original.width, original.height);
   const shouldResize =
     options.maxDimension > 0 && options.maxDimension < largestSide;
-  const targetType = options.format || file.type;
+  const targetType = options.format || source.type;
+
+  if (targetType === "image/avif") {
+    onProgress?.(0);
+    const outcome = await compressToAvif(
+      original,
+      file,
+      source,
+      options,
+      targetType
+    );
+    onProgress?.(100);
+    return outcome;
+  }
 
   const run = (preserveExif: boolean) =>
-    imageCompression(file, {
+    imageCompression(source, {
       initialQuality: options.quality,
       maxSizeMB:
         options.maxSizeMB > 0 ? options.maxSizeMB : Number.POSITIVE_INFINITY,
@@ -138,7 +243,11 @@ export async function compressImage(
   // The lib only copies EXIF when both sides are JPEG, and it rejects the whole
   // compression if the source has a malformed EXIF block. Falling back once is
   // better than failing an image that compresses fine without its metadata.
+  // A HEIC source never satisfies `file.type === "image/jpeg"`, so it always
+  // takes the strip path here — libheif's decode already rasterized away
+  // whatever EXIF the original HEIC carried.
   const canPreserveExif =
+    !options.stripExif &&
     file.type === "image/jpeg" &&
     (!options.format || options.format === file.type);
 
@@ -157,19 +266,6 @@ export async function compressImage(
     lastModified: file.lastModified,
   });
 
-  // Re-encoding a PNG, or touching an already-optimised JPEG, routinely produces
-  // a bigger file. Keep whichever one is actually smaller.
-  if (output.size >= file.size) {
-    return {
-      kind: "image",
-      file,
-      originalSize: file.size,
-      meta: original,
-      originalMeta: original,
-      unchanged: true,
-    };
-  }
-
   // With a target size the lib may downscale further than we asked, so the only
   // reliable answer is to measure. Otherwise the resize is a single known step.
   const result =
@@ -177,12 +273,5 @@ export async function compressImage(
       ? await getFileDimensions(output)
       : predictDimensions(original, shouldResize ? options.maxDimension : 0);
 
-  return {
-    kind: "image",
-    file: output,
-    originalSize: file.size,
-    meta: result,
-    originalMeta: original,
-    unchanged: false,
-  };
+  return finalizeOutcome(original, file, output, result);
 }
