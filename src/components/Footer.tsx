@@ -37,11 +37,11 @@ export const Footer = () => (
       <div className="grid-page">
         <div className="col-span-full lg:col-span-5">
           <h2 className="font-display text-h2 font-semibold text-inverse">
-            Smaller files, same picture, nothing uploaded.
+            Smaller files, same media, nothing uploaded.
           </h2>
           <div className="mt-8">
             <Button variant="inverse" onClick={openFilePicker}>
-              Compress images
+              Compress files
             </Button>
           </div>
         </div>
@@ -72,10 +72,10 @@ export const Footer = () => (
 
       <div className="mt-24 flex flex-col gap-2 border-t border-line-inverse pt-6 md:flex-row md:items-center md:justify-between">
         <p className="font-mono text-caption text-inverse-muted">
-          © {new Date().getFullYear()} TinyImg
+          © {new Date().getFullYear()} TinyMedia
         </p>
         <p className="font-mono text-caption text-inverse-muted">
-          Every image is compressed on your device.
+          Every file is processed on your device.
         </p>
       </div>
     </footer>

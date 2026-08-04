@@ -1,10 +1,12 @@
 "use client";
 
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
+import { formatDuration } from "@/utils/formatDuration";
 import { downloadBlob } from "@/utils/downloadBlob";
-import type { MediaOutcome } from "@/media/types";
+import type { MediaKind, MediaOutcome } from "@/media/types";
 import { isImageOutcome } from "@/media/image/engine";
 import { isHeicFile } from "@/media/image/heic";
+import { isAudioOutcome } from "@/media/audio/engine";
 import { useThumbnail } from "@/hooks/useThumbnail";
 import { FC, memo, useState } from "react";
 import { Image } from "@/components/ui/Image";
@@ -14,6 +16,7 @@ interface ItemDropzoneProps {
   index: number;
   id: string;
   file: File;
+  kind: MediaKind;
   deleteFile(id: string): void;
   retryFile(id: string): void;
   actualItem?: MediaOutcome;
@@ -23,6 +26,8 @@ interface ItemDropzoneProps {
   error?: string;
   progress?: number;
   isPaused?: boolean;
+  /** Distinct from "Compressing…" during a first-time engine download. */
+  stage?: string;
 }
 
 /** Status is carried by a label, never by the dot colour alone (§12.1). */
@@ -53,6 +58,7 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   file,
   index,
   id,
+  kind,
   deleteFile,
   retryFile,
   actualItem,
@@ -61,6 +67,7 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   error,
   progress,
   isPaused = false,
+  stage,
 }) => {
   const { name, size } = file;
   const [isComparing, setIsComparing] = useState(false);
@@ -68,7 +75,8 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   // The thumbnail always shows the source image: it is what the row is about,
   // and it exists before there is any result to show. Downscaled first — see
   // `useThumbnail` for why pointing at the original file is not an option.
-  const thumbnailUrl = useThumbnail(file);
+  // Audio has no pixels to decode, so it never asks the hook to try.
+  const thumbnailUrl = useThumbnail(kind === "image" ? file : undefined);
 
   const handleDownload = () => {
     if (!actualItem) return;
@@ -82,6 +90,7 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
   // The dimension line and the pixel-zoom comparison only mean something for a
   // still image — time-based media gets its own surfaces (see ROADMAP §6.4/6.6).
   const image = actualItem && isImageOutcome(actualItem) ? actualItem : null;
+  const audio = actualItem && isAudioOutcome(actualItem) ? actualItem : null;
 
   const wasResized =
     !!image &&
@@ -109,14 +118,25 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
         </span>
 
         {/* Decorative: the filename beside it is the accessible name (§12.7). */}
-        <span className="h-10 w-10 shrink-0 overflow-hidden rounded-xs bg-surface">
-          {thumbnailUrl && (
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xs bg-surface">
+          {thumbnailUrl ? (
             <Image
               src={thumbnailUrl}
               alt=""
               loading="lazy"
               className="h-full w-full object-cover"
             />
+          ) : (
+            kind === "audio" && (
+              <svg
+                className="h-4 w-4 text-muted"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M6 2.5v7.55A2.5 2.5 0 1 0 7 12V6l6-1.2V9.05A2.5 2.5 0 1 0 14 11V1L6 2.5Z" />
+              </svg>
+            )
           )}
         </span>
 
@@ -170,6 +190,15 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
         </p>
       )}
 
+      {audio && (
+        <p data-numeric className="font-mono text-caption text-muted">
+          {formatDuration(audio.meta.duration)}
+          {audio.meta.bitrate
+            ? ` · ${Math.round(audio.meta.bitrate / 1000)} kbps`
+            : ""}
+        </p>
+      )}
+
       {/* `unchanged` means re-encoding produced a *bigger* file and the original
           was kept — "Already optimized" read as praise for a fallback. */}
       {actualItem?.unchanged && (
@@ -185,7 +214,9 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
           dotClass="animate-pulse bg-action"
           toneClass="text-secondary"
           label={
-            typeof progress === "number" && progress > 0
+            stage === "loading-engine"
+              ? "Preparing engine…"
+              : typeof progress === "number" && progress > 0
               ? `Compressing ${progress}%`
               : "Compressing…"
           }

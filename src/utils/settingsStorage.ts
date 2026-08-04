@@ -1,9 +1,12 @@
 import { getEngine, type MediaOptions } from "@/media/registry";
 import type { MediaKind } from "@/media/types";
 
-const STORAGE_KEY = "tinyimg:settings:v2";
-/** v1 held image options at the top level, before there was more than one kind. */
-const LEGACY_KEY = "tinyimg:settings:v1";
+const STORAGE_KEY = "tinymedia:settings:v2";
+/** Pre-rebrand keys, newest first. `v2` already held the per-kind shape;
+ *  `v1` held image options at the top level, before there was more than one
+ *  kind. Both are read once as a fallback so a returning TinyImg user's
+ *  settings survive the rename. */
+const LEGACY_KEYS = ["tinyimg:settings:v2", "tinyimg:settings:v1"];
 
 const KINDS: MediaKind[] = ["image", "audio", "video"];
 
@@ -44,13 +47,19 @@ export function loadSettings(): StoredSettings | null {
     if (current) return coerce(current);
 
     // A returning user should not lose the settings they picked before the
-    // queue learned about other kinds. v1 is left in place rather than
-    // deleted: it costs a few bytes and nothing reads it after this.
-    const legacy = read(LEGACY_KEY);
-    if (!legacy) return null;
+    // rename, or before the queue learned about other kinds. Legacy keys are
+    // left in place rather than deleted: they cost a few bytes and nothing
+    // reads them after this.
+    const legacyV2 = read(LEGACY_KEYS[0]);
+    if (legacyV2) return coerce(legacyV2);
+
+    // v1 held image options flat, at the top level, before there was a
+    // per-kind shape to nest them under.
+    const legacyV1 = read(LEGACY_KEYS[1]);
+    if (!legacyV1) return null;
 
     const engine = getEngine("image");
-    return engine ? { image: engine.coerce(legacy) } : null;
+    return engine ? { image: engine.coerce(legacyV1) } : null;
   } catch {
     // Private mode, disabled storage, or malformed JSON — defaults are fine.
     return null;

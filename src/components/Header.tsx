@@ -13,7 +13,6 @@ import {
 } from "motion/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "./ui/Button";
-import { Image } from "./ui/Image";
 import { ThemeToggle } from "./ThemeToggle";
 import { openFilePicker } from "@/utils/openFilePicker";
 
@@ -108,19 +107,15 @@ function useActiveSection(ids: string[]) {
   return activeId;
 }
 
-/** The white cut of the mark, not the black one: the pill is `bg-ink`, and the
- *  ink family is only shifted between themes rather than flipped (tokens.css
- *  §DARK THEME), so this surface is dark under both and there is nothing to
- *  swap on. Intrinsic dimensions are the file's own — the browser needs the
- *  ratio to reserve the box before the PNG lands, and CSS takes it from there. */
+/** Text rather than the old wordmark art: that PNG has "TinyImg" baked into
+ *  its pixels with no source file to re-render from, so the rename can't
+ *  reuse it. `text-inverse` matches the white cut it replaces — the pill is
+ *  `bg-ink`, dark under both themes, so there's nothing to swap on here
+ *  either. */
 const Wordmark = () => (
-  <Image
-    src="/logo-tinyimg-dark-mode.png"
-    alt="TinyImg"
-    width={926}
-    height={296}
-    className="h-6 w-auto md:h-7"
-  />
+  <span className="font-display text-h4 font-semibold text-inverse">
+    TinyMedia
+  </span>
 );
 
 export const Header = () => {
@@ -309,7 +304,7 @@ export const Header = () => {
 
             <div className="hidden md:block">
               <Button variant="inverse" size="sm" onClick={openFilePicker}>
-                Compress images
+                Compress files
               </Button>
             </div>
 
@@ -429,7 +424,7 @@ export const Header = () => {
                       openFilePicker();
                     }}
                   >
-                    Compress images
+                    Compress files
                   </Button>
                 </motion.div>
               </>

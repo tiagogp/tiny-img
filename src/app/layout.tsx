@@ -39,13 +39,13 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "TinyImg — compress images in your browser",
+  title: "TinyMedia — convert and compress media in your browser",
   description:
-    "Compress WebP, PNG and JPEG on your own device. No uploads, no account, no queue.",
+    "Convert and compress images and audio on your own device. No uploads, no account, no queue.",
   openGraph: {
-    title: "TinyImg — compress images in your browser",
+    title: "TinyMedia — convert and compress media in your browser",
     description:
-      "Compress WebP, PNG and JPEG on your own device. No uploads, no account, no queue.",
+      "Convert and compress images and audio on your own device. No uploads, no account, no queue.",
     /* The card itself is `opengraph-image.png` in this folder — Next hashes it
        into the route and writes the url, type, dimensions and alt text from
        the file, which no hand-written path can stay in sync with. Same for

@@ -33,6 +33,10 @@ export interface MediaOutcome<M extends MediaMeta = MediaMeta> {
 export interface EngineHandlers {
   signal: AbortSignal;
   onProgress?(value: number): void;
+  /** Distinct from progress: a bar stuck at 0% during a first-time WASM
+   *  download reads as broken, so the row can say what it's actually doing.
+   *  Optional — engines that never load anything (image) just never call it. */
+  onStage?(stage: "loading-engine" | "converting"): void;
 }
 
 export interface MediaEngine<Options> {

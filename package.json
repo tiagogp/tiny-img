@@ -1,5 +1,5 @@
 {
-  "name": "tiny-img",
+  "name": "tinymedia",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -14,6 +14,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
     "@jsquash/avif": "^2.1.1",
     "browser-image-compression": "2.0.2",
     "jszip": "3.10.1",

@@ -1,1 +1,1 @@
-TinyImg — compress images in your browser
+TinyMedia — convert and compress media in your browser

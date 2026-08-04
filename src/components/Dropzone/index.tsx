@@ -16,17 +16,14 @@ import {
   filterFiles,
 } from "../../utils/verifyFile";
 import ItemDropzone from "./ItemDropzone";
-import CompressionSettings from "./CompressionSettings";
+import OutputSettings from "./OutputSettings";
 import JSZip from "jszip";
 import { Image } from "@/components/ui/Image";
 import { Counter } from "../Counter";
-import { getEngine } from "@/media/registry";
+import { getEngine, limitsLine, type MediaOptions } from "@/media/registry";
 import type { MediaKind, MediaOutcome } from "@/media/types";
-import {
-  DEFAULT_IMAGE_OPTIONS,
-  isSameImageOptions,
-  type ImageOptions,
-} from "@/media/image/options";
+import { DEFAULT_IMAGE_OPTIONS, type ImageOptions } from "@/media/image/options";
+import { DEFAULT_AUDIO_OPTIONS } from "@/media/audio/options";
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import { downloadBlob, uniqueName } from "@/utils/downloadBlob";
 import { FILE_INPUT_ID } from "@/utils/openFilePicker";
@@ -36,6 +33,14 @@ import {
   type StoredSettings,
 } from "@/utils/settingsStorage";
 import { Button } from "../ui/Button";
+
+/** Seeds both kinds up front so the settings panel and `optionsRef` always
+ *  have something to read, whether or not that kind has ever appeared in the
+ *  queue yet. */
+const INITIAL_OPTIONS: StoredSettings = {
+  image: DEFAULT_IMAGE_OPTIONS,
+  audio: DEFAULT_AUDIO_OPTIONS,
+};
 
 /** Cap the pool so a 16-core machine doesn't spawn 16 decoder workers at once.
  *  Each engine caps its own kind on top of this — see `MediaEngine.concurrency`. */
@@ -111,18 +116,21 @@ export const Dropzone = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [notice, setNotice] = useState("");
-  const [draftOptions, setDraftOptions] = useState<ImageOptions>(
-    DEFAULT_IMAGE_OPTIONS
+  const [draftOptions, setDraftOptions] = useState<StoredSettings>(
+    INITIAL_OPTIONS
   );
-  const [appliedOptions, setAppliedOptions] = useState<ImageOptions>(
-    DEFAULT_IMAGE_OPTIONS
+  const [appliedOptions, setAppliedOptions] = useState<StoredSettings>(
+    INITIAL_OPTIONS
   );
+  /** Per-row stage label, for jobs whose first run pays for a WASM download —
+   *  a progress bar stuck at 0% during that reads as broken otherwise. */
+  const [stage, setStage] = useState<Record<string, string>>({});
 
   const itemsRef = useRef<QueueItem[]>([]);
   const resultsRef = useRef<ResultMap>({});
   /** Options per kind, so a mixed queue never runs one kind's settings on
-   *  another. Only the image panel exists today, so only `image` is filled. */
-  const optionsRef = useRef<StoredSettings>({ image: DEFAULT_IMAGE_OPTIONS });
+   *  another. */
+  const optionsRef = useRef<StoredSettings>(INITIAL_OPTIONS);
   const isRunningRef = useRef(false);
   /** Read inside the pool loop so a stop takes effect between images. */
   const isPausedRef = useRef(false);
@@ -139,6 +147,30 @@ export const Dropzone = () => {
   const queueRef = useRef<HTMLElement | null>(null);
   /** Set when files are accepted, consumed once the queue has rendered. */
   const shouldScrollRef = useRef(false);
+  /** The engine-loading notice only ever needs to say its piece once. */
+  const audioEngineNoticeShownRef = useRef(false);
+
+  /** Which panels the settings shell shows. An empty queue defaults to the
+   *  image panel (§6.2) rather than showing nothing. */
+  const presentKinds = useMemo<MediaKind[]>(
+    () =>
+      items.length === 0
+        ? ["image"]
+        : [...new Set(items.map((item) => item.kind))],
+    [items]
+  );
+
+  const isDirty = useMemo(
+    () =>
+      presentKinds.some((kind) => {
+        const engine = getEngine(kind);
+        const draft = draftOptions[kind];
+        const applied = appliedOptions[kind];
+
+        return !!engine && !!draft && !!applied && !engine.isSame(draft, applied);
+      }),
+    [presentKinds, draftOptions, appliedOptions]
+  );
 
   const updateItems = useCallback((next: QueueItem[]) => {
     itemsRef.current = next;
@@ -208,6 +240,18 @@ export const Dropzone = () => {
     progressBufferRef.current = {};
     setProgress({});
   }, []);
+
+  const forgetStage = useCallback((id: string) => {
+    setStage((prev) => {
+      if (!(id in prev)) return prev;
+
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  const clearStage = useCallback(() => setStage({}), []);
 
   const cancelAll = useCallback(() => {
     controllersRef.current.forEach((controller) => controller.abort());
@@ -290,6 +334,15 @@ export const Dropzone = () => {
       controllersRef.current.set(next.id, controller);
       syncProcessing();
 
+      // First audio job of the session pays for a ~30 MB WASM download — said
+      // once, in the same warning surface a rejection would use.
+      if (next.kind === "audio" && !audioEngineNoticeShownRef.current) {
+        audioEngineNoticeShownRef.current = true;
+        setNotice(
+          "Preparing the media engine — a one-time ~30 MB download that stays on your device."
+        );
+      }
+
       let result: ProcessResult = null;
       let failure = "";
 
@@ -297,6 +350,10 @@ export const Dropzone = () => {
         result = await engine.run(next.file, options, {
           signal: controller.signal,
           onProgress: (value) => reportProgress(next.id, value),
+          onStage: (value) =>
+            setStage((prev) =>
+              prev[next.id] === value ? prev : { ...prev, [next.id]: value }
+            ),
         });
 
         // The engine has no notion of "extra sizes" — it only sees a
@@ -391,13 +448,27 @@ export const Dropzone = () => {
    *  the only point where the stored value is safely available. */
   useEffect(() => {
     const stored = loadSettings();
-    if (!stored?.image) return;
+    if (!stored) return;
 
     optionsRef.current = { ...optionsRef.current, ...stored };
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDraftOptions(stored.image);
-    setAppliedOptions(stored.image);
+    setDraftOptions((prev) => ({ ...prev, ...stored }));
+    setAppliedOptions((prev) => ({ ...prev, ...stored }));
   }, []);
+
+  /** Warns before a job in flight is lost to a closed tab — cheap, and worth
+   *  having now that a job can meaningfully outlast an image compress. */
+  useEffect(() => {
+    if (!isProcessing) return;
+
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isProcessing]);
 
   const addFiles = useCallback(
     (incoming: File[]) => {
@@ -424,7 +495,10 @@ export const Dropzone = () => {
         queued.push({ id: createId(), file, kind });
 
         const extraSizes =
-          kind === "image" ? optionsRef.current.image?.extraSizes ?? [] : [];
+          kind === "image"
+            ? (optionsRef.current.image as ImageOptions | undefined)
+                ?.extraSizes ?? []
+            : [];
         for (const sizeOverride of extraSizes) {
           queued.push({ id: createId(), file, kind, sizeOverride });
         }
@@ -511,8 +585,9 @@ export const Dropzone = () => {
     updateItems([]);
     setErrors({});
     clearProgress();
+    clearStage();
     setNotice("");
-  }, [cancelAll, clearProgress, resume, updateItems, updateResults]);
+  }, [cancelAll, clearProgress, clearStage, resume, updateItems, updateResults]);
 
   /** Stops the queue and keeps every image that already finished. */
   const stopProcessing = useCallback(() => {
@@ -521,10 +596,13 @@ export const Dropzone = () => {
     cancelAll();
   }, [cancelAll]);
 
+  /** Commits every kind's draft at once — "Apply to all files" is one action,
+   *  not one per panel. A kind with nothing queued has nothing to recompress,
+   *  so committing its draft too is harmless. */
   const applySettings = useCallback(() => {
     cancelAll();
     resume();
-    optionsRef.current = { ...optionsRef.current, image: draftOptions };
+    optionsRef.current = { ...optionsRef.current, ...draftOptions };
     setAppliedOptions(draftOptions);
     saveSettings(optionsRef.current);
     updateResults(() => ({}));
@@ -537,19 +615,22 @@ export const Dropzone = () => {
    * setting — otherwise changing a value before dropping anything would silently
    * compress the first batch with the previous one.
    */
-  const changeOptions = useCallback((next: ImageOptions) => {
-    setDraftOptions(next);
+  const changeOptions = useCallback((kind: MediaKind, next: MediaOptions) => {
+    setDraftOptions((prev) => ({ ...prev, [kind]: next }));
 
     if (itemsRef.current.length === 0) {
-      optionsRef.current = { ...optionsRef.current, image: next };
-      setAppliedOptions(next);
+      optionsRef.current = { ...optionsRef.current, [kind]: next };
+      setAppliedOptions((prev) => ({ ...prev, [kind]: next }));
       saveSettings(optionsRef.current);
     }
   }, []);
 
   const resetSettings = useCallback(() => {
-    changeOptions(DEFAULT_IMAGE_OPTIONS);
-  }, [changeOptions]);
+    for (const kind of presentKinds) {
+      const engine = getEngine(kind);
+      if (engine) changeOptions(kind, engine.defaults);
+    }
+  }, [changeOptions, presentKinds]);
 
   const deleteFile = useCallback(
     (id: string) => {
@@ -568,8 +649,9 @@ export const Dropzone = () => {
         return next;
       });
       forgetProgress(id);
+      forgetStage(id);
     },
-    [forgetProgress, updateItems, updateResults]
+    [forgetProgress, forgetStage, updateItems, updateResults]
   );
 
   /** Puts one failed image back in the queue without touching the rest. */
@@ -587,12 +669,13 @@ export const Dropzone = () => {
       });
 
       forgetProgress(id);
+      forgetStage(id);
 
       isPausedRef.current = false;
       setIsPaused(false);
       void runQueue();
     },
-    [forgetProgress, runQueue, updateResults]
+    [forgetProgress, forgetStage, runQueue, updateResults]
   );
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -661,7 +744,7 @@ export const Dropzone = () => {
       type: "blob",
       compression: "STORE",
     });
-    downloadBlob(zipBlob, "tinyimg.zip");
+    downloadBlob(zipBlob, "tinymedia.zip");
   };
 
   return (
@@ -680,7 +763,7 @@ export const Dropzone = () => {
       >
         <input
           id={FILE_INPUT_ID}
-          aria-label="Choose images to compress"
+          aria-label="Choose files to compress"
           onChange={handleFileSelect}
           type="file"
           multiple
@@ -716,10 +799,10 @@ export const Dropzone = () => {
               Step 01
             </p>
             <h2 className="mt-3 font-display text-h3 font-semibold text-primary">
-              {isDragging ? "Release to add them" : "Drop your images here"}
+              {isDragging ? "Release to add them" : "Drop your files here"}
             </h2>
             <p className="mt-5 max-w-measure-intro text-body text-secondary">
-              WebP, PNG and JPEG, read straight from disk. Drag them anywhere on
+              Images and audio, read straight from disk. Drag them anywhere on
               this page, or use the button to browse.
             </p>
 
@@ -733,7 +816,7 @@ export const Dropzone = () => {
             </span>
 
             <p data-numeric className="mt-6 font-mono text-caption text-muted">
-              Up to {MAX_FILES} images · 100 MB each
+              {limitsLine(MAX_FILES)}
             </p>
           </div>
         </div>
@@ -793,12 +876,13 @@ export const Dropzone = () => {
         </div>
       )}
 
-      <CompressionSettings
+      <OutputSettings
+        presentKinds={presentKinds}
         options={draftOptions}
         onChange={changeOptions}
         onApply={applySettings}
         onReset={resetSettings}
-        isDirty={!isSameImageOptions(draftOptions, appliedOptions)}
+        isDirty={isDirty}
         fileCount={items.length}
         isProcessing={isProcessing}
       />
@@ -824,7 +908,7 @@ export const Dropzone = () => {
                 id="queue-heading"
                 className="mt-3 font-display text-h3 font-semibold text-primary"
               >
-                Download your images
+                Download your files
               </h2>
             </div>
             <p
@@ -836,7 +920,7 @@ export const Dropzone = () => {
                 ? `${doneCount} of ${items.length} compressed${
                     isPaused ? " · stopped" : ""
                   }`
-                : `All ${items.length} image${
+                : `All ${items.length} file${
                     items.length > 1 ? "s" : ""
                   } compressed`}
               {failedCount > 0 ? ` · ${failedCount} failed` : ""}
@@ -849,7 +933,7 @@ export const Dropzone = () => {
             aria-valuemin={0}
             aria-valuemax={items.length}
             aria-valuenow={doneCount}
-            aria-valuetext={`${doneCount} of ${items.length} images compressed`}
+            aria-valuetext={`${doneCount} of ${items.length} files compressed`}
             aria-label="Batch progress"
             className="mt-8 h-1 w-full overflow-hidden rounded-pill bg-line"
           >
@@ -871,6 +955,7 @@ export const Dropzone = () => {
                 key={item.id}
                 id={item.id}
                 file={item.file}
+                kind={item.kind}
                 deleteFile={deleteFile}
                 retryFile={retryFile}
                 actualItem={results[item.id] ?? undefined}
@@ -879,6 +964,7 @@ export const Dropzone = () => {
                 isProcessing={processing.has(item.id)}
                 isPaused={isPaused}
                 progress={progress[item.id]}
+                stage={stage[item.id]}
               />
             ))}
           </ul>
@@ -894,7 +980,7 @@ export const Dropzone = () => {
                 {convertSizeFileAndUnit(totals.before)} →{" "}
                 {convertSizeFileAndUnit(totals.after)}
               </span>
-              — TinyImg saved
+              — TinyMedia saved
               <span
                 data-numeric
                 className="inline-flex font-display text-h4 font-semibold text-success"

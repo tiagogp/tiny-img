@@ -5,11 +5,11 @@ import { Dropzone } from "../components/Dropzone";
 const STEPS = [
   {
     title: "Drop your files",
-    body: "WebP, PNG and JPEG, up to 100 MB each. Drop them anywhere on the page — they are read straight from disk and no request is ever made.",
+    body: "Images and audio, read from disk as-is. Drop them anywhere on the page — no request is ever made.",
   },
   {
     title: "Tune the output",
-    body: "Pick a format, a quality level, a maximum resolution or a target size. Change your mind and re-run the whole batch at once — your settings are remembered next time.",
+    body: "Pick a format, a quality level or bitrate, a resolution, a trim. Change your mind and re-run the whole batch at once — your settings are remembered next time.",
   },
   {
     title: "Download the result",
@@ -28,7 +28,7 @@ export default function Home() {
       <section id="compress" className="section">
         <div className="container-page">
           <p className="font-mono text-eyebrow uppercase text-muted">
-            In-browser image compression
+            In-browser media conversion
           </p>
 
           {/* §7.2 sets the headline in columns 1–7 with the copy beside it, but
@@ -38,14 +38,15 @@ export default function Home() {
               asymmetry moves from an empty column to an offset block. */}
           <h1 className="mt-3 font-display text-display font-bold text-primary">
             Tiny files. <br className="br-lg" />
-            Same image. <br className="br-lg" />
+            Same media. <br className="br-lg" />
             No upload.
           </h1>
 
           <div className="grid-page mt-8">
             <p className="col-span-full max-w-measure-intro text-body-lg text-secondary lg:col-span-4 lg:col-start-9">
-              TinyImg compresses WebP, PNG and JPEG on your own device. Nothing
-              is uploaded and the originals never leave this tab.
+              TinyMedia converts and compresses images and audio on your own
+              device. Nothing is uploaded and the originals never leave this
+              tab.
             </p>
           </div>
 
@@ -93,12 +94,13 @@ export default function Home() {
       <section id="privacy" className="section">
         <div className="container-narrow text-center">
           <h2 className="font-display text-h2 font-semibold text-primary">
-            Your images never touch a server. Not ours, not anyone&apos;s.
+            Your files never touch a server. Not ours, not anyone&apos;s.
           </h2>
           <p className="mx-auto mt-5 max-w-measure-intro text-body-lg text-secondary">
-            Compression runs in your browser through the Canvas and Web Worker
-            APIs. TinyImg has no upload endpoint, no account, and no analytics
-            on your files — closing the tab is all the cleanup there is.
+            Compression and conversion run in your browser through Canvas, Web
+            Audio and WebAssembly. TinyMedia has no upload endpoint, no
+            account, and no analytics on your files — closing the tab is all
+            the cleanup there is.
           </p>
         </div>
       </section>
