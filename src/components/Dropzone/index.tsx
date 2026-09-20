@@ -14,6 +14,7 @@ import {
   MAX_FILES,
   describeRejections,
   filterFiles,
+  isFileDrag,
 } from "../../utils/verifyFile";
 import ItemDropzone from "./ItemDropzone";
 import OutputSettings from "./OutputSettings";
@@ -23,6 +24,12 @@ import { Counter } from "../Counter";
 import { getEngine, limitsLine, type MediaOptions } from "@/media/registry";
 import type { MediaKind, MediaOutcome } from "@/media/types";
 import { DEFAULT_IMAGE_OPTIONS, type ImageOptions } from "@/media/image/options";
+import {
+  CubeParseError,
+  isCubeFile,
+  readCubeFile,
+} from "@/media/image/lut/cube";
+import { forgetLut, registerLut } from "@/media/image/lut/registry";
 import { DEFAULT_AUDIO_OPTIONS } from "@/media/audio/options";
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import { downloadBlob, uniqueName } from "@/utils/downloadBlob";
@@ -91,11 +98,6 @@ function getConcurrency() {
   return Math.max(1, Math.min(cores || 4, MAX_CONCURRENCY));
 }
 
-/** A drag only counts if it is carrying files — text selections drag too. */
-function isFileDrag(transfer: DataTransfer | null) {
-  return Array.from(transfer?.types ?? []).includes("Files");
-}
-
 /** Distinguishes the extra-size outputs of one source file from each other
  *  and from the base row — otherwise every fanned row shares one filename. */
 function suffixFilename(name: string, suffix: string) {
@@ -128,6 +130,11 @@ export const Dropzone = () => {
 
   const itemsRef = useRef<QueueItem[]>([]);
   const resultsRef = useRef<ResultMap>({});
+  /** The draft, readable synchronously. A dropped `.cube` has to merge into
+   *  whatever is currently in the panel, and taking `draftOptions` as a
+   *  dependency of `addFiles` would rebuild the window drag listeners every
+   *  time a slider moved. */
+  const draftOptionsRef = useRef<StoredSettings>(INITIAL_OPTIONS);
   /** Options per kind, so a mixed queue never runs one kind's settings on
    *  another. */
   const optionsRef = useRef<StoredSettings>(INITIAL_OPTIONS);
@@ -160,6 +167,15 @@ export const Dropzone = () => {
     [items]
   );
 
+  /** The photo the LUT preview is judged on: the first image in the queue.
+   *  Picking one rather than offering a choice keeps the preview a single
+   *  decision — the LUT applies to the whole batch either way, so a second
+   *  control for "which one am I looking at" would only be a way to hesitate. */
+  const sampleImage = useMemo(
+    () => items.find((item) => item.kind === "image")?.file,
+    [items]
+  );
+
   const isDirty = useMemo(
     () =>
       presentKinds.some((kind) => {
@@ -171,6 +187,10 @@ export const Dropzone = () => {
       }),
     [presentKinds, draftOptions, appliedOptions]
   );
+
+  useEffect(() => {
+    draftOptionsRef.current = draftOptions;
+  }, [draftOptions]);
 
   const updateItems = useCallback((next: QueueItem[]) => {
     itemsRef.current = next;
@@ -470,14 +490,68 @@ export const Dropzone = () => {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isProcessing]);
 
+  /**
+   * A `.cube` dropped with the photos is a setting, not a file to compress, so
+   * it never reaches the queue. Committing it goes through the same rule every
+   * other setting follows (`changeOptions`): with an empty queue the draft *is*
+   * the applied value, which is what makes "twenty photos and a LUT, dropped
+   * together" grade on the first pass instead of needing a second click.
+   *
+   * Awaited before the photos are queued for exactly that reason — the queue
+   * has to still be empty when the commit happens.
+   */
+  const loadDroppedCube = useCallback(async (file: File) => {
+    const current =
+      (draftOptionsRef.current.image as ImageOptions | undefined) ??
+      DEFAULT_IMAGE_OPTIONS;
+
+    try {
+      const parsed = await readCubeFile(file);
+
+      if (current.lut) forgetLut(current.lut.id);
+
+      const next: ImageOptions = {
+        ...current,
+        lut: registerLut(parsed, current.lut?.intensity ?? 1),
+      };
+
+      draftOptionsRef.current = { ...draftOptionsRef.current, image: next };
+      setDraftOptions((prev) => ({ ...prev, image: next }));
+
+      if (itemsRef.current.length === 0) {
+        optionsRef.current = { ...optionsRef.current, image: next };
+        setAppliedOptions((prev) => ({ ...prev, image: next }));
+        saveSettings(optionsRef.current);
+      }
+
+      return "";
+    } catch (cause) {
+      return cause instanceof CubeParseError
+        ? `${file.name} was not loaded — ${cause.message
+            .charAt(0)
+            .toLowerCase()}${cause.message.slice(1)}`
+        : `${file.name} could not be read as a .cube LUT.`;
+    }
+  }, []);
+
   const addFiles = useCallback(
-    (incoming: File[]) => {
+    async (incoming: File[]) => {
+      // Last one wins, the same rule the settings panel follows when a LUT is
+      // replaced: dropping two cubes means you meant the second.
+      const cubes = incoming.filter(isCubeFile);
+      const cubeNotice =
+        cubes.length > 0 ? await loadDroppedCube(cubes[cubes.length - 1]) : "";
+
+      const media = incoming.filter((file) => !isCubeFile(file));
+
       const { accepted, rejected } = filterFiles(
-        incoming,
+        media,
         itemsRef.current.length
       );
 
-      setNotice(rejected.length > 0 ? describeRejections(rejected) : "");
+      setNotice(
+        cubeNotice || (rejected.length > 0 ? describeRejections(rejected) : "")
+      );
 
       if (accepted.length === 0) return;
 
@@ -506,7 +580,7 @@ export const Dropzone = () => {
       shouldScrollRef.current = true;
       updateItems([...itemsRef.current, ...queued]);
     },
-    [updateItems]
+    [loadDroppedCube, updateItems]
   );
 
   /**
@@ -562,7 +636,7 @@ export const Dropzone = () => {
       setIsWindowDragging(false);
       setIsDragging(false);
 
-      addFiles(dropped);
+      void addFiles(dropped);
     };
 
     window.addEventListener("dragenter", onDragEnter);
@@ -679,7 +753,7 @@ export const Dropzone = () => {
   );
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    addFiles(Array.from(event.target.files ?? []));
+    void addFiles(Array.from(event.target.files ?? []));
     event.target.value = "";
   };
 
@@ -768,7 +842,10 @@ export const Dropzone = () => {
           type="file"
           multiple
           className="drop-input absolute inset-0 z-sticky h-full w-full cursor-pointer opacity-0"
-          accept={ACCEPT_ATTRIBUTE}
+          /* `.cube` is not a media kind and has no engine, so it is appended
+             here rather than in the registry — the panel takes it, the queue
+             never sees it. */
+          accept={`${ACCEPT_ATTRIBUTE},.cube`}
           name="file"
         />
 
@@ -885,6 +962,7 @@ export const Dropzone = () => {
         isDirty={isDirty}
         fileCount={items.length}
         isProcessing={isProcessing}
+        sampleImage={sampleImage}
       />
 
       {items.length > 0 && (

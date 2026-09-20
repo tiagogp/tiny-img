@@ -12,6 +12,7 @@ import {
   type Transition,
 } from "motion/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Button } from "./ui/Button";
 import { ThemeToggle } from "./ThemeToggle";
 import { openFilePicker } from "@/utils/openFilePicker";
@@ -59,13 +60,20 @@ const RETURN: Transition = { duration: 0.32, ease: [0.16, 1, 0.3, 1] };
  *  the eye has followed it and stops reading as one object moving. */
 const MARKER: Transition = { duration: 0.32, ease: [0.16, 1, 0.3, 1] };
 
+/** A hash entry points at a section of the home page; a path entry is a route
+ *  of its own. Both live in one list so the bar and the sheet stay in step. */
 const NAV_LINKS = [
   { label: "Compress", href: "#compress" },
   { label: "How it works", href: "#how-it-works" },
   { label: "Privacy", href: "#privacy" },
+  { label: "LUT lab", href: "/lut-lab" },
 ];
 
-const SECTION_IDS = NAV_LINKS.map((link) => link.href.slice(1));
+const SECTION_IDS = NAV_LINKS.filter((link) => link.href.startsWith("#")).map(
+  (link) => link.href.slice(1)
+);
+
+const HOME = "/";
 
 /** Which section the reader is actually in, for the marker to sit under.
  *
@@ -122,6 +130,22 @@ export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const activeId = useActiveSection(SECTION_IDS);
+  const pathname = usePathname();
+  const isHome = pathname === HOME;
+
+  /**
+   * A bare `#compress` on another route scrolls to nothing, because the
+   * section is on the home page. Off the home page the hash links have to
+   * carry it — and only then can the marker mean anything, since the observer
+   * has no sections to watch either.
+   */
+  const resolve = (href: string) =>
+    href.startsWith("#") && !isHome ? `${HOME}${href}` : href;
+
+  const isCurrent = (href: string) =>
+    href.startsWith("#")
+      ? isHome && href === `#${activeId}`
+      : pathname === href;
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -262,17 +286,23 @@ export const Header = () => {
           <nav aria-label="Main" className="hidden md:block">
             <ul className="flex items-center gap-8">
               {NAV_LINKS.map((link) => {
-                const isActive = link.href === `#${activeId}`;
+                const isActive = isCurrent(link.href);
 
                 return (
                   <li key={link.href}>
                     <a
-                      href={link.href}
-                      /* "location" rather than "page": every link points at a
-                         section of the page that is already open, and the
-                         marker is reporting where the reader is, not which
-                         document they are in. */
-                      aria-current={isActive ? "location" : undefined}
+                      href={resolve(link.href)}
+                      /* "location" for a section of the page that is already
+                         open — the marker is reporting where the reader is,
+                         not which document they are in. A route entry is a
+                         different document, so that one is "page". */
+                      aria-current={
+                        isActive
+                          ? link.href.startsWith("#")
+                            ? "location"
+                            : "page"
+                          : undefined
+                      }
                       className={`relative rounded-pill px-2 font-display text-nav font-medium transition-colors duration-fast ease-standard active:opacity-70 ${
                         isActive
                           ? "text-inverse"
@@ -386,7 +416,7 @@ export const Header = () => {
                   <nav aria-label="Main">
                     <ul>
                       {NAV_LINKS.map((link) => {
-                        const isActive = link.href === `#${activeId}`;
+                        const isActive = isCurrent(link.href);
 
                         return (
                           <li
@@ -394,8 +424,14 @@ export const Header = () => {
                             className="border-b border-line-inverse"
                           >
                             <a
-                              href={link.href}
-                              aria-current={isActive ? "location" : undefined}
+                              href={resolve(link.href)}
+                              aria-current={
+                                isActive
+                                  ? link.href.startsWith("#")
+                                    ? "location"
+                                    : "page"
+                                  : undefined
+                              }
                               onClick={closeMenu}
                               className="flex items-center gap-3 py-5 font-display text-h4 font-semibold text-inverse"
                             >
