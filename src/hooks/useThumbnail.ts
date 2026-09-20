@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { decodeHeic, isHeicFile } from "@/media/image/heic";
+import { isMemoryConstrained } from "@/utils/deviceBudget";
 
 /**
  * The row shows the source image in a 40px slot. Pointing an `<img>` straight at
@@ -16,14 +17,28 @@ const THUMB_SIZE = 96;
 /**
  * Thumbnailing competes with the compression pool for CPU and for peak memory —
  * the transient full decode is only cheap because at most two exist at a time.
+ *
+ * On a device where the pool itself is down to a single lane, a second decode
+ * here would be a third of the peak spent on a 40px preview, so the previews
+ * queue up one at a time instead. They are ahead of the compression they
+ * illustrate either way.
  */
 const MAX_DECODES = 2;
 
 let active = 0;
 const waiting: (() => void)[] = [];
 
+/** Resolved once rather than per row: the device does not change mid-session,
+ *  and this is called for every file in the queue. */
+let decodeLimit: number | null = null;
+
+function limit() {
+  decodeLimit ??= isMemoryConstrained() ? 1 : MAX_DECODES;
+  return decodeLimit;
+}
+
 function acquire(): Promise<void> {
-  if (active < MAX_DECODES) {
+  if (active < limit()) {
     active += 1;
     return Promise.resolve();
   }

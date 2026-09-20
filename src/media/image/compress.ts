@@ -2,6 +2,7 @@ import imageCompression from "browser-image-compression";
 import type { EngineHandlers, MediaMeta, MediaOutcome } from "../types";
 import { encodeAvif } from "./avif";
 import { decodeHeic, isHeicFile } from "./heic";
+import { readHeaderDimensions, type Dimensions } from "./dimensions";
 import { withGradedCanvas } from "./lut/apply";
 import { getLutTable } from "./lut/registry";
 import type { CubeLut } from "./lut/cube";
@@ -20,10 +21,7 @@ const EXTENSIONS: Record<string, string> = {
   "image/avif": "avif",
 };
 
-export interface Dimensions {
-  width: number;
-  height: number;
-}
+export type { Dimensions };
 
 /** Images always know their pixel size, so these are not optional here. */
 export interface ImageMeta extends MediaMeta {
@@ -33,7 +31,24 @@ export interface ImageMeta extends MediaMeta {
 
 export type ImageOutcome = MediaOutcome<ImageMeta>;
 
+/**
+ * Releases a canvas's backing store immediately instead of waiting for the GC
+ * to notice it. A full-resolution canvas is tens of megabytes that the pool
+ * has already committed to allocating again for the next file, and on mobile
+ * Safari the tab is killed for the overlap long before a collection runs.
+ */
+function releaseCanvas(canvas: OffscreenCanvas) {
+  canvas.width = 0;
+  canvas.height = 0;
+}
+
 export async function getFileDimensions(file: Blob): Promise<Dimensions> {
+  // Two integers out of the file's header, for the price of reading its first
+  // few hundred bytes. The decode below is the fallback, not the plan — see
+  // `dimensions.ts` for why it is worth avoiding.
+  const declared = await readHeaderDimensions(file);
+  if (declared) return declared;
+
   if (typeof createImageBitmap === "function") {
     const bitmap = await createImageBitmap(file, {
       imageOrientation: "from-image",
@@ -271,6 +286,7 @@ async function compressOnCanvas(
 
   if (!context) {
     bitmap.close();
+    releaseCanvas(canvas);
     throw new Error("The browser refused to read this image's pixels.");
   }
 
@@ -294,13 +310,21 @@ async function compressOnCanvas(
     bitmap.close();
   }
 
-  const blob =
-    targetType === "image/avif"
-      ? await encodeAvif(
-          context.getImageData(0, 0, target.width, target.height),
-          options.quality
-        )
-      : await encodeCanvas(canvas, targetType, options, signal);
+  let blob: Blob;
+
+  try {
+    blob =
+      targetType === "image/avif"
+        ? await encodeAvif(
+            context.getImageData(0, 0, target.width, target.height),
+            options.quality
+          )
+        : await encodeCanvas(canvas, targetType, options, signal);
+  } finally {
+    // The encode is the last thing that needs these pixels, and the next file
+    // in the pool asks for the same megabytes again the moment this returns.
+    releaseCanvas(canvas);
+  }
 
   const output = new File([blob], renameForType(file.name, targetType), {
     type: targetType,

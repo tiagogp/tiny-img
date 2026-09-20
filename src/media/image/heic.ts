@@ -107,6 +107,12 @@ export async function decodeHeic(file: File): Promise<File> {
     quality: 0.92,
   });
 
+  // A full-resolution canvas is tens of megabytes, and the compression step
+  // that runs next allocates its own. Dropping this one now rather than at the
+  // next collection keeps the two from overlapping.
+  canvas.width = 0;
+  canvas.height = 0;
+
   // `renameForType` in compress.ts strips whatever extension is here and
   // replaces it with the real output format's, so the original name is fine.
   return new File([blob], file.name, {

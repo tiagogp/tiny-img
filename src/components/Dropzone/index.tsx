@@ -18,7 +18,6 @@ import {
 } from "../../utils/verifyFile";
 import ItemDropzone from "./ItemDropzone";
 import OutputSettings from "./OutputSettings";
-import JSZip from "jszip";
 import { Image } from "@/components/ui/Image";
 import { Counter } from "../Counter";
 import { getEngine, limitsLine, type MediaOptions } from "@/media/registry";
@@ -32,6 +31,8 @@ import {
 import { forgetLut, registerLut } from "@/media/image/lut/registry";
 import { DEFAULT_AUDIO_OPTIONS } from "@/media/audio/options";
 import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
+import { parallelJobBudget } from "@/utils/deviceBudget";
+import { createStoredZip } from "@/utils/zipStore";
 import { downloadBlob, uniqueName } from "@/utils/downloadBlob";
 import { FILE_INPUT_ID } from "@/utils/openFilePicker";
 import {
@@ -91,11 +92,15 @@ function createId() {
   return `file-${idCounter}`;
 }
 
+/**
+ * Core count is the ceiling, not the answer. A phone reports four or six cores
+ * and cannot afford four simultaneous full-resolution decodes — mobile Safari
+ * responds to that by killing the tab, which loses the whole queue rather than
+ * failing one file. `parallelJobBudget` is what decides how many lanes the
+ * device can actually pay for.
+ */
 function getConcurrency() {
-  const cores =
-    typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 0;
-
-  return Math.max(1, Math.min(cores || 4, MAX_CONCURRENCY));
+  return parallelJobBudget(MAX_CONCURRENCY);
 }
 
 /** Distinguishes the extra-size outputs of one source file from each other
@@ -118,6 +123,10 @@ export const Dropzone = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [notice, setNotice] = useState("");
+  /** The archive is assembled without copying the files, but it still has to
+   *  checksum every one of them — on a big batch that is long enough for a
+   *  second click to arrive. */
+  const [isZipping, setIsZipping] = useState(false);
   const [draftOptions, setDraftOptions] = useState<StoredSettings>(
     INITIAL_OPTIONS
   );
@@ -805,20 +814,36 @@ export const Dropzone = () => {
   }, [doneResults]);
 
   const handleDownload = async () => {
-    const zip = new JSZip();
+    if (isZipping) return;
+
     const taken = new Set<string>();
+    setIsZipping(true);
 
-    doneResults.forEach(({ file }) => {
-      zip.file(uniqueName(file.name, taken), file);
-    });
+    try {
+      // Stored, not deflated: JPEG, PNG, WebP and AVIF are already compressed,
+      // so DEFLATE would buy a fraction of a percent in exchange for pulling
+      // the whole batch through memory. `createStoredZip` instead hands back a
+      // Blob that points at the files it was given — which is the difference
+      // between a download and a crashed tab on a phone that has just spent
+      // its memory budget producing them.
+      const archive = await createStoredZip(
+        doneResults.map(({ file }) => ({
+          name: uniqueName(file.name, taken),
+          blob: file,
+          lastModified: file.lastModified,
+        }))
+      );
 
-    // JPEG, PNG and WebP are already compressed — DEFLATE buys a fraction of a
-    // percent while holding a second copy of the whole batch in memory to do it.
-    const zipBlob = await zip.generateAsync({
-      type: "blob",
-      compression: "STORE",
-    });
-    downloadBlob(zipBlob, "tinymedia.zip");
+      downloadBlob(archive, "tinymedia.zip");
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "The archive could not be built."
+      );
+    } finally {
+      setIsZipping(false);
+    }
   };
 
   return (
@@ -1074,8 +1099,8 @@ export const Dropzone = () => {
           )}
 
           <div className="mt-8 flex flex-wrap gap-4">
-            <Button onClick={handleDownload} disabled={!isFinished}>
-              Download all
+            <Button onClick={handleDownload} disabled={!isFinished || isZipping}>
+              {isZipping ? "Preparing download…" : "Download all"}
             </Button>
 
             {/* Stopping keeps every finished image — it is not a reset (§9.1). */}
