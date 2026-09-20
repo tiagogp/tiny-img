@@ -29,7 +29,8 @@ function summariseKind(kind: MediaKind, options: MediaOptions): string {
 function renderPanel(
   kind: MediaKind,
   options: MediaOptions,
-  onChange: (next: MediaOptions) => void
+  onChange: (next: MediaOptions) => void,
+  sampleImage?: File
 ) {
   switch (kind) {
     case "image":
@@ -37,6 +38,7 @@ function renderPanel(
         <ImageSettings
           options={options as ImageOptions}
           onChange={onChange as (next: ImageOptions) => void}
+          sampleImage={sampleImage}
         />
       );
     case "audio":
@@ -60,6 +62,8 @@ interface OutputSettingsProps {
   isDirty: boolean;
   fileCount: number;
   isProcessing: boolean;
+  /** Image-only, and only for the LUT preview — see `ImageSettings`. */
+  sampleImage?: File;
 }
 
 const OutputSettings: FC<OutputSettingsProps> = ({
@@ -71,6 +75,7 @@ const OutputSettings: FC<OutputSettingsProps> = ({
   isDirty,
   fileCount,
   isProcessing,
+  sampleImage,
 }) => {
   /** Collapsible in both directions — files no longer force it open. */
   const [isExpanded, setIsExpanded] = useState(false);
@@ -140,7 +145,12 @@ const OutputSettings: FC<OutputSettingsProps> = ({
                   {KIND_TITLES[kind]}
                 </h3>
               )}
-              {renderPanel(kind, kindOptions, (next) => onChange(kind, next))}
+              {renderPanel(
+                kind,
+                kindOptions,
+                (next) => onChange(kind, next),
+                sampleImage
+              )}
             </div>
           );
         })}

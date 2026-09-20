@@ -10,6 +10,11 @@ import type { MediaKind } from "@/media/types";
 /** Queue-wide, not per-kind: this is a limit on rows, not on bytes. */
 export const MAX_FILES = 100;
 
+/** A drag only counts if it is carrying files — text selections drag too. */
+export function isFileDrag(transfer: DataTransfer | null) {
+  return Array.from(transfer?.types ?? []).includes("Files");
+}
+
 export { ACCEPT_ATTRIBUTE };
 
 /** A file the queue can take, paired with the engine that will handle it. */

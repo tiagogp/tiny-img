@@ -1,3 +1,5 @@
+import { hasLutTable, type LutSelection } from "./lut/registry";
+
 /** `""` keeps each image in its original format. */
 export type ImageFormat =
   | ""
@@ -29,6 +31,16 @@ export interface ImageOptions {
    * make "Apply to all files" ambiguous about which rows it owns.
    */
   extraSizes: number[];
+  /**
+   * A colour LUT applied to every image in the batch before it is encoded, or
+   * `null` for none — which is the default, and the only state a fresh visit
+   * can be in.
+   *
+   * This is a *reference* to a table held for the session, not the table
+   * itself; see `lut/registry.ts` for why. A LUT therefore does not survive a
+   * reload, and `coerceImageOptions` drops a reference whose table is gone.
+   */
+  lut: LutSelection | null;
 }
 
 /**
@@ -44,6 +56,7 @@ export const DEFAULT_IMAGE_OPTIONS: ImageOptions = {
   format: "",
   stripExif: false,
   extraSizes: [],
+  lut: null,
 };
 
 export const IMAGE_FORMATS: ImageFormat[] = [
@@ -61,7 +74,11 @@ export const isSameImageOptions = (a: ImageOptions, b: ImageOptions) =>
   a.format === b.format &&
   a.stripExif === b.stripExif &&
   a.extraSizes.length === b.extraSizes.length &&
-  a.extraSizes.every((size, index) => size === b.extraSizes[index]);
+  a.extraSizes.every((size, index) => size === b.extraSizes[index]) &&
+  // Identity and strength, not the table: a reference is all that can differ,
+  // and this runs on every render to decide whether the queue is dirty.
+  a.lut?.id === b.lut?.id &&
+  a.lut?.intensity === b.lut?.intensity;
 
 /**
  * Anything can be in localStorage — an older shape, a half-written value, a
@@ -114,5 +131,28 @@ export function coerceImageOptions(raw: unknown): ImageOptions {
       ]
     : DEFAULT_IMAGE_OPTIONS.extraSizes;
 
-  return { quality, maxDimension, maxSizeMB, format, stripExif, extraSizes };
+  // A stored reference outlives the table it points at — the table lives in
+  // memory and the reference in localStorage. Restoring the name alone would
+  // put a LUT in the summary line that grades nothing, so it is dropped.
+  const stored = value.lut as Partial<LutSelection> | null | undefined;
+  const lut =
+    stored &&
+    typeof stored.id === "string" &&
+    typeof stored.name === "string" &&
+    typeof stored.intensity === "number" &&
+    stored.intensity >= 0 &&
+    stored.intensity <= 1 &&
+    hasLutTable(stored.id)
+      ? { id: stored.id, name: stored.name, intensity: stored.intensity }
+      : null;
+
+  return {
+    quality,
+    maxDimension,
+    maxSizeMB,
+    format,
+    stripExif,
+    extraSizes,
+    lut,
+  };
 }
