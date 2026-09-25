@@ -34,7 +34,7 @@ import { convertSizeFileAndUnit } from "@/utils/convertSizeFileAndUnit";
 import { parallelJobBudget } from "@/utils/deviceBudget";
 import { createStoredZip } from "@/utils/zipStore";
 import { downloadBlob, uniqueName } from "@/utils/downloadBlob";
-import { FILE_INPUT_ID } from "@/utils/openFilePicker";
+import { FILE_INPUT_ID, openFilePicker } from "@/utils/openFilePicker";
 import {
   loadSettings,
   saveSettings,
@@ -603,7 +603,14 @@ export const Dropzone = () => {
     if (!shouldScrollRef.current || !queueRef.current) return;
 
     shouldScrollRef.current = false;
-    queueRef.current.scrollIntoView({ block: "start" });
+
+    // The queue takes the drop panel's place, so a drop made on the panel is
+    // already looking at it — only a pick started from the nav or footer
+    // needs bringing back.
+    const { top } = queueRef.current.getBoundingClientRect();
+    if (top < 0 || top > window.innerHeight * 0.6) {
+      queueRef.current.scrollIntoView({ block: "start" });
+    }
   }, [items]);
 
   /**
@@ -816,6 +823,13 @@ export const Dropzone = () => {
   const handleDownload = async () => {
     if (isZipping) return;
 
+    // One file needs no archive around it.
+    if (doneResults.length === 1) {
+      const [{ file }] = doneResults;
+      downloadBlob(file, file.name);
+      return;
+    }
+
     const taken = new Set<string>();
     setIsZipping(true);
 
@@ -846,84 +860,10 @@ export const Dropzone = () => {
     }
   };
 
+  const hasItems = items.length > 0;
+
   return (
     <>
-      {/* Drop panel — the one piece of artwork on the page, and the whole
-          surface is the file picker (§1.1, §7.2). The real control is the file
-          input stretched over the panel; the pill inside is decorative and
-          takes its states from that input via `.drop-*` in globals.css, so the
-          affordance is visible without adding a second tab stop (§12.4).
-          The drop itself is handled on `window` — see the effect above. */}
-      <div
-        onDragEnter={dragEnter}
-        onDragLeave={dragLeave}
-        onDragOver={(event) => event.preventDefault()}
-        className="relative select-none"
-      >
-        <input
-          id={FILE_INPUT_ID}
-          aria-label="Choose files to compress"
-          onChange={handleFileSelect}
-          type="file"
-          multiple
-          className="drop-input absolute inset-0 z-sticky h-full w-full cursor-pointer opacity-0"
-          /* `.cube` is not a media kind and has no engine, so it is appended
-             here rather than in the registry — the panel takes it, the queue
-             never sees it. */
-          accept={`${ACCEPT_ATTRIBUTE},.cube`}
-          name="file"
-        />
-
-        <div
-          data-dragging={isDragging || undefined}
-          className="drop-panel flex cursor-pointer flex-col overflow-hidden rounded-hero border border-line bg-surface transition-[background-color,border-color,box-shadow] duration-fast ease-standard md:min-h-(--hero-panel-min) md:flex-row-reverse"
-        >
-          {/* Decorative (§12.7): the panel beside it carries every word that
-              matters, so an alt would only repeat the caption to a screen
-              reader. The pre-encoded variants go straight to the browser via
-              our native Image component, with no Vercel image transformation. */}
-          <Image
-            pictureClassName="relative block h-48 w-full shrink-0 md:h-auto md:w-1/2"
-            sources={ARTWORK_SOURCES}
-            src="/artwork/poster-1312.webp"
-            srcSet="/artwork/poster-800.webp 800w, /artwork/poster-1312.webp 1312w, /artwork/poster-1672.webp 1672w"
-            sizes="(min-width: 768px) 50vw, 100vw"
-            alt=""
-            width={1672}
-            height={941}
-            loading="eager"
-            fetchPriority="high"
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-
-          <div className="flex flex-1 flex-col justify-end p-8 md:p-12">
-            <p className="font-mono text-eyebrow uppercase text-muted">
-              Step 01
-            </p>
-            <h2 className="mt-3 font-display text-h3 font-semibold text-primary">
-              {isDragging ? "Release to add them" : "Drop your files here"}
-            </h2>
-            <p className="mt-5 max-w-measure-intro text-body text-secondary">
-              Images and audio, read straight from disk. Drag them anywhere on
-              this page, or use the button to browse.
-            </p>
-
-            {/* Not a <button>: the input above owns the click and the focus
-                ring, and two controls for one action is one too many. */}
-            <span
-              aria-hidden="true"
-              className="drop-cta mt-8 inline-flex h-12 items-center justify-center self-start rounded-pill bg-action px-6 font-display text-button font-semibold text-inverse transition-[background-color,transform] duration-fast ease-standard"
-            >
-              Browse files
-            </span>
-
-            <p data-numeric className="mt-6 font-mono text-caption text-muted">
-              {limitsLine(MAX_FILES)}
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Full-page target. `pointer-events-none` keeps the drag reaching the
           panel underneath, which owns the more specific highlight. */}
       <AnimatePresence>
@@ -943,184 +883,303 @@ export const Dropzone = () => {
         )}
       </AnimatePresence>
 
-      {notice && (
-        <div
-          role="status"
-          className="mt-6 flex items-start gap-3 rounded-sm bg-warning-surface px-4 py-3 text-body-sm text-warning"
-        >
-          <svg
-            className="mt-1 h-4 w-4 shrink-0"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-            aria-hidden="true"
-          >
-            <path d="M8 1.5 15 14H1L8 1.5Zm0 4.25a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 0 1.5 0V6.5A.75.75 0 0 0 8 5.75Zm0 5a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8Z" />
-          </svg>
-          <p className="flex-1">{notice}</p>
-          <button
-            type="button"
-            onClick={() => setNotice("")}
-            aria-label="Dismiss this message"
-            className="-my-1 -mr-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-pill transition-opacity duration-fast ease-standard hover:opacity-70"
-          >
-            <svg
-              className="h-3 w-3"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
-          </button>
-        </div>
-      )}
-
-      <OutputSettings
-        presentKinds={presentKinds}
-        options={draftOptions}
-        onChange={changeOptions}
-        onApply={applySettings}
-        onReset={resetSettings}
-        isDirty={isDirty}
-        fileCount={items.length}
-        isProcessing={isProcessing}
-        sampleImage={sampleImage}
-      />
-
-      {items.length > 0 && (
-        <motion.section
-          ref={queueRef}
-          aria-labelledby="queue-heading"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.56, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-16 scroll-mt-24"
-        >
-          {/* Step 03 is the download, so it carries the same heading rhythm as
-              the two steps above it — the queue was previously an unlabelled
-              block and the final action had no step at all. */}
-          <div className="flex flex-wrap items-baseline justify-between gap-4">
-            <div>
-              <p className="font-mono text-eyebrow uppercase text-muted">
-                Step 03
-              </p>
-              <h2
-                id="queue-heading"
-                className="mt-3 font-display text-h3 font-semibold text-primary"
-              >
-                Download your files
-              </h2>
-            </div>
-            <p
-              data-numeric
+      {/* A workspace rather than a sequence of sections: files on the left,
+          settings beside them, so nothing the user needs is below the fold or
+          behind a toggle. Stacks on small screens with the files first. */}
+      <div className="grid-page items-start">
+        <div className="col-span-full lg:col-span-8">
+          {notice && (
+            <div
               role="status"
-              className="font-mono text-caption text-muted"
+              className="mb-6 flex items-start gap-3 rounded-sm bg-warning-surface px-4 py-3 text-body-sm text-warning"
             >
-              {pendingCount > 0
-                ? `${doneCount} of ${items.length} compressed${
-                    isPaused ? " · stopped" : ""
-                  }`
-                : `All ${items.length} file${
-                    items.length > 1 ? "s" : ""
-                  } compressed`}
-              {failedCount > 0 ? ` · ${failedCount} failed` : ""}
-            </p>
-          </div>
-
-          {/* Batch progress — a rule, not a bar with a box around it. */}
-          <div
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={items.length}
-            aria-valuenow={doneCount}
-            aria-valuetext={`${doneCount} of ${items.length} files compressed`}
-            aria-label="Batch progress"
-            className="mt-8 h-1 w-full overflow-hidden rounded-pill bg-line"
-          >
-            <motion.div
-              aria-hidden="true"
-              className="h-full rounded-pill bg-action"
-              initial={{ width: 0 }}
-              animate={{
-                width: `${(doneCount / items.length) * 100}%`,
-              }}
-              transition={{ duration: 0.32, ease: [0.2, 0.6, 0.2, 1] }}
-            />
-          </div>
-
-          <ul className="mt-6 max-h-128 overflow-y-auto overflow-x-hidden rounded-md border border-line bg-bg">
-            {items.map((item, index) => (
-              <ItemDropzone
-                index={index}
-                key={item.id}
-                id={item.id}
-                file={item.file}
-                kind={item.kind}
-                deleteFile={deleteFile}
-                retryFile={retryFile}
-                actualItem={results[item.id] ?? undefined}
-                hasFailed={results[item.id] === null}
-                error={errors[item.id]}
-                isProcessing={processing.has(item.id)}
-                isPaused={isPaused}
-                progress={progress[item.id]}
-                stage={stage[item.id]}
-              />
-            ))}
-          </ul>
-
-          {doneResults.length > 0 && totals.percent > 0 && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.32 }}
-              className="mt-6 flex flex-wrap items-baseline gap-2 text-body text-secondary"
-            >
-              <span data-numeric>
-                {convertSizeFileAndUnit(totals.before)} →{" "}
-                {convertSizeFileAndUnit(totals.after)}
-              </span>
-              — TinyMedia saved
-              <span
-                data-numeric
-                className="inline-flex font-display text-h4 font-semibold text-success"
+              <svg
+                className="mt-1 h-4 w-4 shrink-0"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                aria-hidden="true"
               >
-                <Counter
-                  from={0}
-                  to={Number(totals.percent.toFixed(2))}
-                  duration={1}
-                />
-                %
-              </span>
-            </motion.p>
+                <path d="M8 1.5 15 14H1L8 1.5Zm0 4.25a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 0 1.5 0V6.5A.75.75 0 0 0 8 5.75Zm0 5a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8Z" />
+              </svg>
+              <p className="flex-1">{notice}</p>
+              <button
+                type="button"
+                onClick={() => setNotice("")}
+                aria-label="Dismiss this message"
+                className="-my-1 -mr-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-pill transition-opacity duration-fast ease-standard hover:opacity-70"
+              >
+                <svg
+                  className="h-3 w-3"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
+              </button>
+            </div>
           )}
 
-          <div className="mt-8 flex flex-wrap gap-4">
-            <Button onClick={handleDownload} disabled={!isFinished || isZipping}>
-              {isZipping ? "Preparing download…" : "Download all"}
-            </Button>
+          {!hasItems ? (
+            /* Drop panel — the one piece of artwork on the page, and the whole
+               surface is the file picker (§1.1, §7.2). The real control is the
+               file input stretched over the panel; the pill inside is
+               decorative and takes its states from that input via `.drop-*` in
+               globals.css, so the affordance is visible without adding a
+               second tab stop (§12.4). The drop itself is handled on `window`
+               — see the effect above. */
+            <div
+              onDragEnter={dragEnter}
+              onDragLeave={dragLeave}
+              onDragOver={(event) => event.preventDefault()}
+              className="relative select-none"
+            >
+              <input
+                id={FILE_INPUT_ID}
+                aria-label="Choose files to compress"
+                onChange={handleFileSelect}
+                type="file"
+                multiple
+                className="drop-input absolute inset-0 z-sticky h-full w-full cursor-pointer opacity-0"
+                /* `.cube` is not a media kind and has no engine, so it is
+                   appended here rather than in the registry — the panel takes
+                   it, the queue never sees it. */
+                accept={`${ACCEPT_ATTRIBUTE},.cube`}
+                name="file"
+              />
 
-            {/* Stopping keeps every finished image — it is not a reset (§9.1). */}
-            {isProcessing && (
-              <Button variant="secondary" onClick={stopProcessing}>
-                Stop
-              </Button>
-            )}
-            {!isProcessing && isPaused && pendingCount > 0 && (
-              <Button variant="secondary" onClick={resume}>
-                Resume {pendingCount} remaining
-              </Button>
-            )}
+              <div
+                data-dragging={isDragging || undefined}
+                className="drop-panel flex cursor-pointer flex-col overflow-hidden rounded-hero border border-line bg-surface transition-[background-color,border-color,box-shadow] duration-fast ease-standard md:min-h-(--hero-panel-min) md:flex-row-reverse"
+              >
+                {/* Decorative (§12.7): the panel beside it carries every word
+                    that matters, so an alt would only repeat the caption to a
+                    screen reader. */}
+                <Image
+                  pictureClassName="relative block h-40 w-full shrink-0 md:h-auto md:w-5/12"
+                  sources={ARTWORK_SOURCES}
+                  src="/artwork/poster-1312.webp"
+                  srcSet="/artwork/poster-800.webp 800w, /artwork/poster-1312.webp 1312w, /artwork/poster-1672.webp 1672w"
+                  sizes="(min-width: 768px) 40vw, 100vw"
+                  alt=""
+                  width={1672}
+                  height={941}
+                  loading="eager"
+                  fetchPriority="high"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
 
-            <Button variant="quiet" onClick={clearFiles}>
-              Clear all
-            </Button>
-          </div>
-        </motion.section>
-      )}
+                <div className="flex flex-1 flex-col justify-center p-8 md:p-12">
+                  <h2 className="font-display text-h3 font-semibold text-primary">
+                    {isDragging ? "Release to add them" : "Drop files here"}
+                  </h2>
+                  <p className="mt-4 max-w-measure-intro text-body text-secondary">
+                    Images (JPG, PNG, WebP, HEIC) and audio. They start
+                    compressing as soon as you add them.
+                  </p>
+
+                  {/* Not a <button>: the input above owns the click and the
+                      focus ring, and two controls for one action is one too
+                      many. */}
+                  <span
+                    aria-hidden="true"
+                    className="drop-cta mt-8 inline-flex h-12 items-center justify-center self-start rounded-pill bg-action px-6 font-display text-button font-semibold text-inverse transition-[background-color,transform] duration-fast ease-standard"
+                  >
+                    Choose files
+                  </span>
+
+                  <p
+                    data-numeric
+                    className="mt-6 font-mono text-caption text-muted"
+                  >
+                    {limitsLine(MAX_FILES)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <motion.section
+              ref={queueRef}
+              aria-labelledby="queue-heading"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.56, ease: [0.16, 1, 0.3, 1] }}
+              className="scroll-mt-28"
+            >
+              {/* Same input, same id, so "Add files" and the nav CTA keep
+                  reaching one picker once the panel has made way for the
+                  queue. */}
+              <input
+                id={FILE_INPUT_ID}
+                aria-label="Add more files"
+                onChange={handleFileSelect}
+                type="file"
+                multiple
+                tabIndex={-1}
+                className="u-visually-hidden"
+                accept={`${ACCEPT_ATTRIBUTE},.cube`}
+                name="file"
+              />
+
+              {/* The actions sit above the list, not under it: with a long
+                  batch the download would otherwise be a scroll away. */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <h2
+                  id="queue-heading"
+                  className="font-display text-h3 font-semibold text-primary"
+                >
+                  Your files
+                </h2>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button variant="quiet" size="sm" onClick={clearFiles}>
+                    Clear all
+                  </Button>
+
+                  {/* Stopping keeps every finished file — it is not a reset
+                      (§9.1). */}
+                  {isProcessing ? (
+                    <Button variant="secondary" size="sm" onClick={stopProcessing}>
+                      Stop
+                    </Button>
+                  ) : isPaused && pendingCount > 0 ? (
+                    <Button variant="secondary" size="sm" onClick={resume}>
+                      Resume {pendingCount}
+                    </Button>
+                  ) : (
+                    <Button variant="secondary" size="sm" onClick={openFilePicker}>
+                      Add files
+                    </Button>
+                  )}
+
+                  <Button
+                    size="sm"
+                    onClick={handleDownload}
+                    disabled={!isFinished || isZipping || doneResults.length === 0}
+                  >
+                    {isZipping
+                      ? "Preparing…"
+                      : doneResults.length === 1 && items.length === 1
+                      ? "Download"
+                      : (
+                        <>
+                          Download all
+                          <span className="hidden sm:inline"> (.zip)</span>
+                        </>
+                      )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Batch progress — a rule, not a bar with a box around it. */}
+              <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={items.length}
+                aria-valuenow={doneCount}
+                aria-valuetext={`${doneCount} of ${items.length} files compressed`}
+                aria-label="Batch progress"
+                className="mt-6 h-1 w-full overflow-hidden rounded-pill bg-line"
+              >
+                <motion.div
+                  aria-hidden="true"
+                  className="h-full rounded-pill bg-action"
+                  initial={{ width: 0 }}
+                  animate={{
+                    width: `${(doneCount / items.length) * 100}%`,
+                  }}
+                  transition={{ duration: 0.32, ease: [0.2, 0.6, 0.2, 1] }}
+                />
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                <p
+                  data-numeric
+                  role="status"
+                  className="font-mono text-caption text-muted"
+                >
+                  {pendingCount > 0
+                    ? `${doneCount} of ${items.length} compressed${
+                        isPaused ? " · stopped" : ""
+                      }`
+                    : `All ${items.length} file${
+                        items.length > 1 ? "s" : ""
+                      } done`}
+                  {failedCount > 0 ? ` · ${failedCount} failed` : ""}
+                </p>
+
+                {doneResults.length > 0 && totals.percent > 0 && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.32 }}
+                    className="flex flex-wrap items-baseline gap-2 text-body-sm text-secondary"
+                  >
+                    <span data-numeric>
+                      {convertSizeFileAndUnit(totals.before)} →{" "}
+                      {convertSizeFileAndUnit(totals.after)}
+                    </span>
+                    · saved
+                    <span
+                      data-numeric
+                      className="inline-flex font-display text-h4 font-semibold text-success"
+                    >
+                      <Counter
+                        from={0}
+                        to={Number(totals.percent.toFixed(2))}
+                        duration={1}
+                      />
+                      %
+                    </span>
+                  </motion.p>
+                )}
+              </div>
+
+              <ul className="mt-4 max-h-128 overflow-y-auto overflow-x-hidden rounded-md border border-line bg-bg">
+                {items.map((item, index) => (
+                  <ItemDropzone
+                    index={index}
+                    key={item.id}
+                    id={item.id}
+                    file={item.file}
+                    kind={item.kind}
+                    deleteFile={deleteFile}
+                    retryFile={retryFile}
+                    actualItem={results[item.id] ?? undefined}
+                    hasFailed={results[item.id] === null}
+                    error={errors[item.id]}
+                    isProcessing={processing.has(item.id)}
+                    isPaused={isPaused}
+                    progress={progress[item.id]}
+                    stage={stage[item.id]}
+                  />
+                ))}
+              </ul>
+
+              <p className="mt-4 font-mono text-caption text-muted">
+                Drop more files anywhere on this page to add them.
+              </p>
+            </motion.section>
+          )}
+        </div>
+
+        <aside className="col-span-full lg:col-span-4">
+          <OutputSettings
+            presentKinds={presentKinds}
+            options={draftOptions}
+            onChange={changeOptions}
+            onApply={applySettings}
+            onReset={resetSettings}
+            isDirty={isDirty}
+            fileCount={items.length}
+            isProcessing={isProcessing}
+            sampleImage={sampleImage}
+          />
+        </aside>
+      </div>
     </>
   );
 };

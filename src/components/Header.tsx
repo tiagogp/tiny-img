@@ -65,7 +65,6 @@ const MARKER: Transition = { duration: 0.32, ease: [0.16, 1, 0.3, 1] };
 const NAV_LINKS = [
   { label: "Compress", href: "#compress" },
   { label: "How it works", href: "#how-it-works" },
-  { label: "Privacy", href: "#privacy" },
   { label: "LUT lab", href: "/lut-lab" },
 ];
 

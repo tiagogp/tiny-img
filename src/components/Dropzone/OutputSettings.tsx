@@ -1,30 +1,19 @@
 "use client";
 
-import { FC, useState } from "react";
+import { FC } from "react";
 import { Button } from "../ui/Button";
 import type { MediaOptions } from "@/media/registry";
 import type { MediaKind } from "@/media/types";
 import type { ImageOptions } from "@/media/image/options";
 import type { AudioOptions } from "@/media/audio/options";
-import ImageSettings, { summariseImage } from "./ImageSettings";
-import AudioSettings, { summariseAudio } from "./AudioSettings";
+import ImageSettings from "./ImageSettings";
+import AudioSettings from "./AudioSettings";
 
 const KIND_TITLES: Record<MediaKind, string> = {
   image: "Images",
   audio: "Audio",
   video: "Video",
 };
-
-function summariseKind(kind: MediaKind, options: MediaOptions): string {
-  switch (kind) {
-    case "image":
-      return summariseImage(options as ImageOptions);
-    case "audio":
-      return summariseAudio(options as AudioOptions);
-    default:
-      return "";
-  }
-}
 
 function renderPanel(
   kind: MediaKind,
@@ -77,97 +66,62 @@ const OutputSettings: FC<OutputSettingsProps> = ({
   isProcessing,
   sampleImage,
 }) => {
-  /** Collapsible in both directions — files no longer force it open. */
-  const [isExpanded, setIsExpanded] = useState(false);
   const hasFiles = fileCount > 0;
 
+  /* Always open: the settings sit beside the files rather than behind a
+     toggle, so what is about to happen to a drop is never a click away. The
+     basic controls are enough on their own — everything else waits behind
+     "More options" inside each panel. */
   return (
-    <section aria-labelledby="settings-heading" className="mt-16">
-      <div className="flex flex-wrap items-baseline justify-between gap-4">
-        <div>
-          <p className="font-mono text-eyebrow uppercase text-muted">Step 02</p>
-          <h2
-            id="settings-heading"
-            className="mt-3 font-display text-h3 font-semibold text-primary"
+    <section
+      aria-labelledby="settings-heading"
+      className="rounded-md border border-line bg-surface p-6 md:p-8"
+    >
+      <div className="flex items-baseline justify-between gap-4">
+        <h2
+          id="settings-heading"
+          className="font-display text-h4 font-semibold text-primary"
+        >
+          Settings
+        </h2>
+        <Button variant="quiet" size="sm" onClick={onReset}>
+          Reset
+        </Button>
+      </div>
+      {!hasFiles && (
+        <p className="mt-2 text-body-sm text-secondary">
+          The defaults work for most files — change them only if you need to.
+        </p>
+      )}
+
+      {presentKinds.map((kind) => {
+        const kindOptions = options[kind];
+        if (!kindOptions) return null;
+
+        return (
+          <div
+            key={kind}
+            className={presentKinds.length > 1 ? "mt-8 first:mt-6" : undefined}
           >
-            Compression settings
-          </h2>
-        </div>
-        {isExpanded && (
-          <Button variant="quiet" size="sm" onClick={onReset}>
-            Reset to defaults
-          </Button>
-        )}
-      </div>
-
-      {/* One rule, the current settings, and a way in and back out (§9.7). */}
-      <button
-        type="button"
-        aria-expanded={isExpanded}
-        aria-controls="settings-body"
-        onClick={() => setIsExpanded((open) => !open)}
-        className="mt-8 flex w-full flex-wrap items-baseline justify-between gap-4 border-t border-line pt-6 text-left transition-colors duration-fast ease-standard hover:border-ink"
-      >
-        <span data-numeric className="font-mono text-caption text-muted">
-          {hasFiles ? (
-            <span className="flex flex-col gap-1">
-              {presentKinds.map((kind) => {
-                const kindOptions = options[kind];
-                if (!kindOptions) return null;
-
-                return (
-                  <span key={kind}>
-                    {KIND_TITLES[kind]} · {summariseKind(kind, kindOptions)}
-                  </span>
-                );
-              })}
-            </span>
-          ) : (
-            "Settings adapt to what you drop."
-          )}
-        </span>
-        <span className="font-display text-button font-semibold text-secondary">
-          {isExpanded ? "Hide" : "Adjust"}
-        </span>
-      </button>
-
-      {/* The wrapper carries `hidden` because `.grid-page` sets `display: grid`
-          and would win over the attribute's `display: none`. */}
-      <div id="settings-body" hidden={!isExpanded}>
-        {presentKinds.map((kind) => {
-          const kindOptions = options[kind];
-          if (!kindOptions) return null;
-
-          return (
-            <div key={kind}>
-              {presentKinds.length > 1 && (
-                <h3 className="mt-12 font-display text-h4 font-semibold text-primary first:mt-0">
-                  {KIND_TITLES[kind]}
-                </h3>
-              )}
-              {renderPanel(
-                kind,
-                kindOptions,
-                (next) => onChange(kind, next),
-                sampleImage
-              )}
-            </div>
-          );
-        })}
-      </div>
+            {presentKinds.length > 1 && (
+              <h3 className="font-mono text-eyebrow uppercase text-muted">
+                {KIND_TITLES[kind]}
+              </h3>
+            )}
+            {renderPanel(
+              kind,
+              kindOptions,
+              (next) => onChange(kind, next),
+              sampleImage
+            )}
+          </div>
+        );
+      })}
 
       {/* The queue starts on drop, so this row has to say whether what is on
           screen reflects the settings above it or not (§1.2). */}
       {hasFiles && (
-        <div className="mt-12 flex flex-wrap items-center gap-6">
-          <Button
-            onClick={onApply}
-            disabled={!isDirty}
-            loading={isProcessing}
-            variant="secondary"
-          >
-            Apply to all files
-          </Button>
+        <div className="mt-8 border-t border-line pt-6">
           {!isProcessing && (
             <p
               role="status"
@@ -176,10 +130,19 @@ const OutputSettings: FC<OutputSettingsProps> = ({
               }`}
             >
               {isDirty
-                ? "Settings changed — apply to recompress the current files."
+                ? "Settings changed — apply to recompress your files."
                 : `Applied to ${fileCount} file${fileCount > 1 ? "s" : ""}.`}
             </p>
           )}
+          <Button
+            className="mt-4 w-full"
+            onClick={onApply}
+            disabled={!isDirty}
+            loading={isProcessing}
+            variant="secondary"
+          >
+            Apply to all files
+          </Button>
         </div>
       )}
     </section>

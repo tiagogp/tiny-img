@@ -5,9 +5,9 @@
   "scripts": {
     "vendor": "node scripts/vendor-assets.mjs",
     "artwork": "node scripts/build-artwork.mjs",
-    "predev": "pnpm run vendor",
+    "predev": "yarn vendor",
     "dev": "next dev",
-    "prebuild": "pnpm run vendor",
+    "prebuild": "yarn vendor",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -36,11 +36,13 @@
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3"
   },
-  "packageManager": "pnpm@10.26.2",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp",
-      "unrs-resolver"
-    ]
+  "packageManager": "yarn@4.18.1+sha512.b2e1e7524f654f2749d32b4ebcb4622473cb5bcbc485df2007e12a154e50162a4d795526768bc5f5b8f81717bfd79deb2472813d86fb5ae2eb551fa9c872b08f",
+  "dependenciesMeta": {
+    "sharp": {
+      "built": true
+    },
+    "unrs-resolver": {
+      "built": true
+    }
   }
 }

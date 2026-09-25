@@ -10,7 +10,6 @@ const LINK_GROUPS = [
     links: [
       { label: "Compress", href: "#compress" },
       { label: "How it works", href: "#how-it-works" },
-      { label: "Privacy", href: "#privacy" },
     ],
   },
   {
@@ -29,7 +28,7 @@ const linkClass =
   "nav-link relative inline-block rounded-pill font-display text-nav font-medium text-inverse-muted transition-colors duration-fast ease-standard hover:text-inverse active:opacity-70";
 
 export const Footer = () => (
-  <div className="container-page mt-40">
+  <div className="container-page mt-16">
     <footer
       data-surface="ink"
       className="rounded-t-lg bg-ink px-6 pb-12 pt-24 md:px-12"

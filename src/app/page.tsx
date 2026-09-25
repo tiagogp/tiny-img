@@ -21,36 +21,23 @@ export default function Home() {
   return (
     <main id="main">
       {/* HERO + TOOL ------------------------------------------------ */}
-      {/* §7 asks for artwork at the top of the page. The artwork here lives
-          inside the drop panel, so the hero *is* the tool: nothing separates
-          the headline from the thing the headline is describing, and the one
-          saturated element on the first screen is the action (§1.3). */}
-      <section id="compress" className="section">
+      {/* The headline is a caption for the tool, not a poster above it: it
+          stays on one line so the drop panel and the settings beside it land
+          on the first screen, which is what a visitor came here to use. */}
+      <section id="compress" className="pb-(--section-pad) pt-12 md:pt-16">
         <div className="container-page">
           <p className="font-mono text-eyebrow uppercase text-muted">
             In-browser media conversion
           </p>
-
-          {/* §7.2 sets the headline in columns 1–7 with the copy beside it, but
-              a 136px display face wraps its deliberate lines in any column
-              narrower than the full grid. The headline therefore spans the grid
-              and the lede keeps its columns 9–12 position underneath — the
-              asymmetry moves from an empty column to an offset block. */}
-          <h1 className="mt-3 font-display text-display font-bold text-primary">
-            Tiny files. <br className="br-lg" />
-            Same media. <br className="br-lg" />
-            No upload.
+          <h1 className="mt-3 font-display text-h1 font-bold text-primary">
+            Tiny files. Same media. No upload.
           </h1>
+          <p className="mt-5 max-w-measure-intro text-body-lg text-secondary">
+            Compress and convert images and audio — your files never leave
+            this device.
+          </p>
 
-          <div className="grid-page mt-8">
-            <p className="col-span-full max-w-measure-intro text-body-lg text-secondary lg:col-span-4 lg:col-start-9">
-              TinyMedia converts and compresses images and audio on your own
-              device. Nothing is uploaded and the originals never leave this
-              tab.
-            </p>
-          </div>
-
-          <div className="mt-12">
+          <div className="mt-10">
             <Dropzone />
           </div>
         </div>
@@ -62,11 +49,11 @@ export default function Home() {
           <p className="font-mono text-eyebrow uppercase text-muted">
             How it works
           </p>
-          <h2 className="mt-3 max-w-measure font-display text-h2 font-semibold text-primary">
+          <h2 className="mt-3 max-w-measure font-display text-h3 font-semibold text-primary">
             Three steps, none of them a server.
           </h2>
 
-          <ol className="grid-page mt-16">
+          <ol className="grid-page mt-10">
             {STEPS.map((step, index) => (
               <li
                 key={step.title}
@@ -90,20 +77,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CLOSING STATEMENT ------------------------------------------ */}
-      <section id="privacy" className="section">
-        <div className="container-narrow text-center">
-          <h2 className="font-display text-h2 font-semibold text-primary">
-            Your files never touch a server. Not ours, not anyone&apos;s.
-          </h2>
-          <p className="mx-auto mt-5 max-w-measure-intro text-body-lg text-secondary">
-            Compression and conversion run in your browser through Canvas, Web
-            Audio and WebAssembly. TinyMedia has no upload endpoint, no
-            account, and no analytics on your files — closing the tab is all
-            the cleanup there is.
-          </p>
-        </div>
-      </section>
     </main>
   );
 }

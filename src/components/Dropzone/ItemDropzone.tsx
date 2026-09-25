@@ -108,7 +108,7 @@ const ItemDropzone: FC<ItemDropzoneProps> = ({
     /* `queue-row` skips layout and paint while off screen — with a hundred rows
        the ones nobody is looking at should not cost a frame. */
     <li className="queue-row flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-5 py-4 last:border-b-0 md:px-6">
-      <div className="flex min-w-0 flex-1 items-center gap-4">
+      <div className="flex min-w-0 flex-1 basis-full items-center gap-4 md:basis-0">
         <span
           data-numeric
           aria-hidden="true"

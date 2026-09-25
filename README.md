@@ -44,13 +44,13 @@ whole pipeline runs through Canvas, Web Audio and WebAssembly.
 ## Requirements
 
 - Node.js 20+
-- [pnpm](https://pnpm.io) 10 (see `packageManager` in [package.json](package.json))
+- [Yarn](https://yarnpkg.com) 4 via Corepack (`corepack enable`; see `packageManager` in [package.json](package.json))
 
 ## Getting started
 
 ```bash
-pnpm install
-pnpm dev
+yarn install
+yarn dev
 ```
 
 Open <http://localhost:3000>.
@@ -62,13 +62,13 @@ Open <http://localhost:3000>.
 
 | Script | What it does |
 | --- | --- |
-| `pnpm dev` | Next.js dev server |
-| `pnpm build` | Production build |
-| `pnpm start` | Serve the production build |
-| `pnpm lint` | ESLint (`eslint-config-next`) |
-| `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm vendor` | Copy the WASM/JS decoders and encoders into `public/vendor/` |
-| `pnpm artwork` | Re-encode `assets/poster.png` into the responsive AVIF/WebP set |
+| `yarn dev` | Next.js dev server |
+| `yarn build` | Production build |
+| `yarn start` | Serve the production build |
+| `yarn lint` | ESLint (`eslint-config-next`) |
+| `yarn typecheck` | `tsc --noEmit` |
+| `yarn vendor` | Copy the WASM/JS decoders and encoders into `public/vendor/` |
+| `yarn artwork` | Re-encode `assets/poster.png` into the responsive AVIF/WebP set |
 
 ### Vendored assets
 

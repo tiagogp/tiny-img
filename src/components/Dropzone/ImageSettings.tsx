@@ -17,6 +17,7 @@ import {
 } from "@/media/image/lut/registry";
 import { probeLutBackend } from "@/media/image/lut/apply";
 import LutPreview from "./LutPreview";
+import MoreOptions from "./MoreOptions";
 import { fieldLabel, helpText, numberInput } from "./settingsStyles";
 
 const FORMAT_PRESETS: { label: string; value: ImageFormat }[] = [
@@ -35,42 +36,6 @@ const RESOLUTION_PRESETS = [
   { label: "720p", value: 720 },
   { label: "480p", value: 480 },
 ];
-
-const FORMAT_LABELS: Record<ImageFormat, string> = {
-  "": "Original format",
-  "image/webp": "WebP",
-  "image/jpeg": "JPEG",
-  "image/png": "PNG",
-  "image/avif": "AVIF",
-};
-
-/**
- * The one-line version of the panel. Whatever is about to happen to a dropped
- * file has to be readable without opening anything — a collapsed panel that
- * hides its own defaults is a trap.
- */
-export const summariseImage = ({
-  format,
-  quality,
-  maxDimension,
-  maxSizeMB,
-  stripExif,
-  lut,
-}: ImageOptions) =>
-  [
-    FORMAT_LABELS[format],
-    format === "image/png"
-      ? "lossless"
-      : `${Math.round(quality * 100)}% quality`,
-    maxDimension === 0 ? "original size" : `max ${maxDimension} px`,
-    maxSizeMB > 0 ? `up to ${maxSizeMB} MB each` : null,
-    // Named first among the optional parts: it is the only setting here that
-    // changes what the photograph looks like rather than how big it is.
-    lut ? `LUT ${lut.name} at ${Math.round(lut.intensity * 100)}%` : null,
-    stripExif && !lut ? "EXIF stripped" : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 
 interface ImageSettingsProps {
   options: ImageOptions;
@@ -138,9 +103,24 @@ const ImageSettings: FC<ImageSettingsProps> = ({
   const isSoftwareRendered =
     options.lut !== null && probeLutBackend() === "cpu";
 
+  const advancedSummary =
+    [
+      isCustomDimension ? `max ${options.maxDimension} px` : null,
+      options.maxSizeMB > 0 ? `up to ${options.maxSizeMB} MB` : null,
+      options.extraSizes.length > 0
+        ? `${options.extraSizes.length} extra size${
+            options.extraSizes.length > 1 ? "s" : ""
+          }`
+        : null,
+      options.lut ? `LUT ${options.lut.name}` : null,
+      options.stripExif && !options.lut ? "EXIF stripped" : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Target size, extra sizes, colour LUT, metadata";
+
   return (
-    <div className="grid-page mt-12">
-      <fieldset className="col-span-full md:col-span-4 lg:col-span-6">
+    <div className="mt-6 flex flex-col gap-8">
+      <fieldset>
         <legend className={fieldLabel}>Output format</legend>
         <div className="mt-3 flex flex-wrap gap-2">
           {FORMAT_PRESETS.map((preset) => (
@@ -158,18 +138,18 @@ const ImageSettings: FC<ImageSettingsProps> = ({
             ? "WebP is usually the smallest, for photos and graphics alike."
             : options.format === "image/avif"
             ? "AVIF is usually smaller still, though encoding takes longer."
-            : "Converting to WebP or AVIF usually saves another 25–50%."}
+            : "Tip: WebP usually saves another 25–50%."}
         </p>
       </fieldset>
 
-      <div className="col-span-full md:col-span-4 lg:col-span-6">
+      <div>
         <label
           htmlFor="quality"
           className={`${fieldLabel} flex items-baseline justify-between gap-4`}
         >
           Quality
           <span data-numeric className="font-mono text-caption text-secondary">
-            {Math.round(options.quality * 100)}%
+            {isLossless ? "Lossless" : `${Math.round(options.quality * 100)}%`}
           </span>
         </label>
         <input
@@ -185,14 +165,16 @@ const ImageSettings: FC<ImageSettingsProps> = ({
           }
           className="mt-5 w-full cursor-pointer accent-action disabled:cursor-not-allowed disabled:opacity-45 disabled:accent-line-strong"
         />
-        <p className={helpText}>
-          {isLossless
-            ? "PNG output is lossless — quality has no effect."
-            : "Applies to JPEG and WebP output."}
-        </p>
+        <div
+          aria-hidden="true"
+          className="mt-2 flex justify-between font-mono text-caption text-muted"
+        >
+          <span>Smaller file</span>
+          <span>Better quality</span>
+        </div>
       </div>
 
-      <fieldset className="col-span-full md:col-span-4 lg:col-span-6">
+      <fieldset>
         <legend className={fieldLabel}>Max resolution</legend>
         <div className="mt-3 flex flex-wrap gap-2">
           {RESOLUTION_PRESETS.map((preset) => (
@@ -207,241 +189,250 @@ const ImageSettings: FC<ImageSettingsProps> = ({
             </Tag>
           ))}
         </div>
-        <div className="mt-4 flex items-center gap-3">
-          <label htmlFor="custom-dimension" className="u-visually-hidden">
-            Custom maximum resolution in pixels
+        <p className={helpText}>Smaller images are never scaled up.</p>
+      </fieldset>
+
+      <MoreOptions
+        isInUse={
+          isCustomDimension ||
+          options.maxSizeMB > 0 ||
+          options.extraSizes.length > 0 ||
+          options.lut !== null ||
+          options.stripExif
+        }
+        summary={advancedSummary}
+      >
+        <div>
+          <label htmlFor="max-size" className={fieldLabel}>
+            Target size per image
           </label>
-          <input
-            id="custom-dimension"
-            data-numeric
-            type="number"
-            min={16}
-            step={1}
-            placeholder="Custom"
-            value={isCustomDimension ? options.maxDimension : ""}
-            onChange={(event) =>
-              update({
-                maxDimension: Math.max(0, Number(event.target.value)),
-              })
-            }
-            className={numberInput}
-          />
-          <span className="font-mono text-caption text-muted">
-            px on the longest side
-          </span>
-        </div>
-        <p className={helpText}>
-          Images smaller than this are never scaled up.
-        </p>
-      </fieldset>
-
-      <fieldset className="col-span-full md:col-span-4 lg:col-span-6">
-        <legend className={fieldLabel}>Additional sizes</legend>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {RESOLUTION_PRESETS.filter((preset) => preset.value > 0).map(
-            (preset) => {
-              const selected = options.extraSizes.includes(preset.value);
-
-              return (
-                <Tag
-                  key={preset.label}
-                  selected={selected}
-                  onClick={() =>
-                    update({
-                      extraSizes: selected
-                        ? options.extraSizes.filter(
-                            (size) => size !== preset.value
-                          )
-                        : [...options.extraSizes, preset.value],
-                    })
-                  }
-                >
-                  {preset.label}
-                </Tag>
-              );
-            }
-          )}
-        </div>
-        <p className={helpText}>
-          Exports an extra file at each size picked, alongside the max
-          resolution above. Applies to files you drop after this — not to
-          files already in the queue.
-        </p>
-      </fieldset>
-
-      {/* Colour LUT. Optional, off by default, and the only setting on this
-          panel that changes what the photograph looks like rather than how
-          large it is — which is why it is the only one with a preview before
-          it takes effect. */}
-      <fieldset className="col-span-full md:col-span-8 lg:col-span-12">
-        <legend className={fieldLabel}>Colour LUT</legend>
-
-        <input
-          ref={cubeInputRef}
-          id="lut-file"
-          type="file"
-          accept=".cube"
-          className="u-visually-hidden"
-          onChange={(event) => {
-            void loadCube(event.target.files?.[0]);
-            // Otherwise re-picking the same file after removing it fires no
-            // change event and the panel appears to ignore the choice.
-            event.target.value = "";
-          }}
-        />
-
-        {options.lut && lutTable ? (
-          <>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <span className="text-body-sm text-primary">
-                {options.lut.name}
-              </span>
-              <span
-                data-numeric
-                className="rounded-pill border border-line px-3 py-1 font-mono text-caption text-muted"
-              >
-                {describeCubeLut(lutTable)}
-              </span>
-            </div>
-
-            <label
-              htmlFor="lut-intensity-setting"
-              className={`${fieldLabel} mt-6 flex items-baseline justify-between gap-4`}
-            >
-              Intensity
-              <span
-                data-numeric
-                className="font-mono text-caption text-secondary"
-              >
-                {Math.round(options.lut.intensity * 100)}%
-              </span>
-            </label>
+          <div className="mt-3 flex items-center gap-3">
             <input
-              id="lut-intensity-setting"
-              type="range"
+              id="max-size"
+              data-numeric
+              type="number"
               min={0}
-              max={100}
+              step={0.1}
+              placeholder="No limit"
+              value={options.maxSizeMB || ""}
+              onChange={(event) =>
+                update({ maxSizeMB: Math.max(0, Number(event.target.value)) })
+              }
+              className={numberInput}
+            />
+            <span className="font-mono text-caption text-muted">MB</span>
+          </div>
+          <p className={helpText}>Leave empty to compress by quality only.</p>
+        </div>
+
+        <div>
+          <label htmlFor="custom-dimension" className={fieldLabel}>
+            Custom max resolution
+          </label>
+          <div className="mt-3 flex items-center gap-3">
+            <input
+              id="custom-dimension"
+              data-numeric
+              type="number"
+              min={16}
               step={1}
-              value={Math.round(options.lut.intensity * 100)}
+              placeholder="Custom"
+              value={isCustomDimension ? options.maxDimension : ""}
               onChange={(event) =>
                 update({
-                  lut: options.lut
-                    ? {
-                        ...options.lut,
-                        intensity: Number(event.target.value) / 100,
-                      }
-                    : null,
+                  maxDimension: Math.max(0, Number(event.target.value)),
                 })
               }
-              className="mt-5 w-full cursor-pointer accent-action"
+              className={numberInput}
             />
+            <span className="font-mono text-caption text-muted">
+              px, longest side
+            </span>
+          </div>
+        </div>
 
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!sampleImage}
-                onClick={() => setIsPreviewOpen(true)}
-              >
-                Preview
-              </Button>
-              <Button variant="quiet" size="sm" onClick={removeLut}>
-                Remove
-              </Button>
-              <Button
-                variant="quiet"
-                size="sm"
-                onClick={() => cubeInputRef.current?.click()}
-              >
-                Replace
-              </Button>
-            </div>
+        <fieldset>
+          <legend className={fieldLabel}>Additional sizes</legend>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {RESOLUTION_PRESETS.filter((preset) => preset.value > 0).map(
+              (preset) => {
+                const selected = options.extraSizes.includes(preset.value);
 
-            <p className={helpText}>
-              {!sampleImage
-                ? "Applied to every image in the batch. Drop a photo to preview it."
-                : isSoftwareRendered
-                ? "Applied to every image in the batch. This browser has no WebGL2, so grading runs on the CPU — a large batch will be slow."
-                : "Applied to every image in the batch, before compression. Preview it on one photo first."}
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="mt-3">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => cubeInputRef.current?.click()}
-              >
-                Add a .cube file
-              </Button>
-            </div>
-            <p className={helpText}>
-              Optional. An Adobe .cube LUT, applied to every image in the batch
-              before compression — or dropped onto the page with your photos.
-              Display LUTs only: a log LUT (S-Log, LogC) expects footage this
-              is not.
-            </p>
-          </>
-        )}
-
-        {lutError && (
-          <p
-            role="alert"
-            className="mt-4 max-w-measure rounded-sm bg-error-surface px-4 py-3 text-body-sm text-error"
-          >
-            {lutError}
+                return (
+                  <Tag
+                    key={preset.label}
+                    selected={selected}
+                    onClick={() =>
+                      update({
+                        extraSizes: selected
+                          ? options.extraSizes.filter(
+                              (size) => size !== preset.value
+                            )
+                          : [...options.extraSizes, preset.value],
+                      })
+                    }
+                  >
+                    {preset.label}
+                  </Tag>
+                );
+              }
+            )}
+          </div>
+          <p className={helpText}>
+            Exports an extra copy at each size picked. Applies to files you
+            drop after this.
           </p>
-        )}
-      </fieldset>
+        </fieldset>
 
-      <fieldset className="col-span-full md:col-span-4 lg:col-span-6">
-        <legend className={fieldLabel}>Photo metadata</legend>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Tag
-            selected={!options.stripExif && !options.lut}
-            disabled={options.lut !== null}
-            onClick={() => update({ stripExif: false })}
-          >
-            Keep EXIF
-          </Tag>
-          <Tag
-            selected={options.stripExif || options.lut !== null}
-            disabled={options.lut !== null}
-            onClick={() => update({ stripExif: true })}
-          >
-            Strip EXIF
-          </Tag>
-        </div>
-        <p className={helpText}>
-          {options.lut
-            ? "A LUT rebuilds the image from its pixels, which no metadata survives — EXIF is always dropped while one is applied."
-            : "Only applies when the output stays JPEG — every other format always drops EXIF."}
-        </p>
-      </fieldset>
+        {/* Colour LUT. Optional, off by default, and the only setting on this
+            panel that changes what the photograph looks like rather than how
+            large it is — which is why it is the only one with a preview before
+            it takes effect. */}
+        <fieldset>
+          <legend className={fieldLabel}>Colour LUT</legend>
 
-      <div className="col-span-full md:col-span-4 lg:col-span-6">
-        <label htmlFor="max-size" className={fieldLabel}>
-          Target size per image
-        </label>
-        <div className="mt-3 flex items-center gap-3">
           <input
-            id="max-size"
-            data-numeric
-            type="number"
-            min={0}
-            step={0.1}
-            placeholder="No limit"
-            value={options.maxSizeMB || ""}
-            onChange={(event) =>
-              update({ maxSizeMB: Math.max(0, Number(event.target.value)) })
-            }
-            className={numberInput}
+            ref={cubeInputRef}
+            id="lut-file"
+            type="file"
+            accept=".cube"
+            className="u-visually-hidden"
+            onChange={(event) => {
+              void loadCube(event.target.files?.[0]);
+              // Otherwise re-picking the same file after removing it fires no
+              // change event and the panel appears to ignore the choice.
+              event.target.value = "";
+            }}
           />
-          <span className="font-mono text-caption text-muted">MB</span>
-        </div>
-        <p className={helpText}>Leave empty to compress by quality only.</p>
-      </div>
+
+          {options.lut && lutTable ? (
+            <>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <span className="text-body-sm text-primary">
+                  {options.lut.name}
+                </span>
+                <span
+                  data-numeric
+                  className="rounded-pill border border-line px-3 py-1 font-mono text-caption text-muted"
+                >
+                  {describeCubeLut(lutTable)}
+                </span>
+              </div>
+
+              <label
+                htmlFor="lut-intensity-setting"
+                className={`${fieldLabel} mt-6 flex items-baseline justify-between gap-4`}
+              >
+                Intensity
+                <span
+                  data-numeric
+                  className="font-mono text-caption text-secondary"
+                >
+                  {Math.round(options.lut.intensity * 100)}%
+                </span>
+              </label>
+              <input
+                id="lut-intensity-setting"
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(options.lut.intensity * 100)}
+                onChange={(event) =>
+                  update({
+                    lut: options.lut
+                      ? {
+                          ...options.lut,
+                          intensity: Number(event.target.value) / 100,
+                        }
+                      : null,
+                  })
+                }
+                className="mt-5 w-full cursor-pointer accent-action"
+              />
+
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!sampleImage}
+                  onClick={() => setIsPreviewOpen(true)}
+                >
+                  Preview
+                </Button>
+                <Button variant="quiet" size="sm" onClick={removeLut}>
+                  Remove
+                </Button>
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  onClick={() => cubeInputRef.current?.click()}
+                >
+                  Replace
+                </Button>
+              </div>
+
+              <p className={helpText}>
+                {!sampleImage
+                  ? "Applied to every image in the batch. Drop a photo to preview it."
+                  : isSoftwareRendered
+                  ? "Applied to every image in the batch. This browser has no WebGL2, so grading runs on the CPU — a large batch will be slow."
+                  : "Applied to every image in the batch, before compression. Preview it on one photo first."}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="mt-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => cubeInputRef.current?.click()}
+                >
+                  Add a .cube file
+                </Button>
+              </div>
+              <p className={helpText}>
+                Optional colour grade applied to every image before
+                compression. Display LUTs only — not log (S-Log, LogC).
+              </p>
+            </>
+          )}
+
+          {lutError && (
+            <p
+              role="alert"
+              className="mt-4 max-w-measure rounded-sm bg-error-surface px-4 py-3 text-body-sm text-error"
+            >
+              {lutError}
+            </p>
+          )}
+        </fieldset>
+
+        <fieldset>
+          <legend className={fieldLabel}>Photo metadata</legend>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Tag
+              selected={!options.stripExif && !options.lut}
+              disabled={options.lut !== null}
+              onClick={() => update({ stripExif: false })}
+            >
+              Keep EXIF
+            </Tag>
+            <Tag
+              selected={options.stripExif || options.lut !== null}
+              disabled={options.lut !== null}
+              onClick={() => update({ stripExif: true })}
+            >
+              Strip EXIF
+            </Tag>
+          </div>
+          <p className={helpText}>
+            {options.lut
+              ? "A LUT rebuilds the image from its pixels, so EXIF is always dropped while one is applied."
+              : "Camera and location data. Only kept when the output stays JPEG."}
+          </p>
+        </fieldset>
+      </MoreOptions>
 
       {isPreviewOpen && sampleImage && options.lut && lutTable && (
         <LutPreview
