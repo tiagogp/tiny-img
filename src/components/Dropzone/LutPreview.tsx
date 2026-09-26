@@ -14,6 +14,7 @@ import { createLutRenderer, type LutRenderer } from "@/media/image/lut/render";
 import { useObjectUrl } from "@/hooks/useObjectUrl";
 import { Image } from "@/components/ui/Image";
 import { Button } from "../ui/Button";
+import LutBrightness from "./LutBrightness";
 import { helpText } from "./settingsStyles";
 
 /**
@@ -40,7 +41,8 @@ interface LutPreviewProps {
   lut: CubeLut;
   /** Reopening to adjust an already-applied LUT starts where it left off. */
   initialIntensity?: number;
-  onApply(intensity: number): void;
+  initialBrightness?: number;
+  onApply(intensity: number, brightness: number): void;
   /** Fires from the dialog's native `close` event, so every dismissal path —
    *  Escape, the backdrop, Cancel — lands in exactly one place. */
   onClose(): void;
@@ -67,6 +69,7 @@ const LutPreview: FC<LutPreviewProps> = ({
   file,
   lut,
   initialIntensity = DEFAULT_INTENSITY,
+  initialBrightness = 1,
   onApply,
   onClose,
 }) => {
@@ -79,6 +82,8 @@ const LutPreview: FC<LutPreviewProps> = ({
   const frameRequestRef = useRef<number | null>(null);
 
   const [intensity, setIntensity] = useState(initialIntensity);
+  const [brightness, setBrightness] = useState(initialBrightness);
+  const adjustmentsRef = useRef({ intensity: initialIntensity, brightness: initialBrightness });
   const [position, setPosition] = useState(50);
   const [ratio, setRatio] = useState<number | null>(null);
   const [backend, setBackend] = useState<LutRenderer["backend"] | null>(null);
@@ -92,14 +97,15 @@ const LutPreview: FC<LutPreviewProps> = ({
 
   const close = () => dialogRef.current?.close();
 
-  const scheduleDraw = useCallback((value: number) => {
+  const scheduleDraw = useCallback((value: number, light: number) => {
+    adjustmentsRef.current = { intensity: value, brightness: light };
     if (frameRequestRef.current !== null) {
       cancelAnimationFrame(frameRequestRef.current);
     }
 
     frameRequestRef.current = requestAnimationFrame(() => {
       frameRequestRef.current = null;
-      rendererRef.current?.draw(value);
+      rendererRef.current?.draw(value, light);
     });
   }, []);
 
@@ -144,7 +150,7 @@ const LutPreview: FC<LutPreviewProps> = ({
         renderer = createLutRenderer();
         renderer.setSource(bitmap);
         renderer.setLut(lut);
-        renderer.draw(initialIntensity);
+        renderer.draw(adjustmentsRef.current.intensity, adjustmentsRef.current.brightness);
 
         // The renderer owns its canvas, so the DOM gets the real thing rather
         // than a copy of it — one less full-frame blit per slider step.
@@ -386,7 +392,7 @@ const LutPreview: FC<LutPreviewProps> = ({
             onChange={(event) => {
               const next = Number(event.target.value) / 100;
               setIntensity(next);
-              scheduleDraw(next);
+              scheduleDraw(next, brightness);
             }}
             className="mt-5 w-full cursor-pointer accent-action disabled:cursor-not-allowed disabled:opacity-45 disabled:accent-line-strong"
           />
@@ -396,6 +402,16 @@ const LutPreview: FC<LutPreviewProps> = ({
           </p>
         </div>
 
+        <LutBrightness
+          id="lut-brightness-preview"
+          value={brightness}
+          disabled={!isReady}
+          onChange={(next) => {
+            setBrightness(next);
+            scheduleDraw(intensity, next);
+          }}
+        />
+
         <div className="mt-8 flex flex-wrap items-center justify-end gap-3">
           <Button variant="quiet" onClick={close}>
             Cancel
@@ -404,7 +420,7 @@ const LutPreview: FC<LutPreviewProps> = ({
             variant="primary"
             disabled={!isReady}
             onClick={() => {
-              onApply(intensity);
+              onApply(intensity, brightness);
               close();
             }}
           >

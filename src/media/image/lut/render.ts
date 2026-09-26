@@ -35,10 +35,10 @@ export interface LutRenderer {
    * visible wherever the image is partly transparent.
    */
   setSource(source: ImageBitmap): void;
-  /** `null` renders the source untouched, which is what intensity 0 means too. */
+  /** `null` renders the source untouched, brightness is only used when a LUT is loaded. */
   setLut(lut: CubeLut | null): void;
-  /** `intensity` 0–1: a linear mix between the source and the graded result. */
-  draw(intensity: number): void;
+  /** `intensity` 0–1 mixes the LUT; `brightness` then scales RGB (default 1). */
+  draw(intensity: number, brightness?: number): void;
   dispose(): void;
 }
 
@@ -97,6 +97,7 @@ uniform sampler3D uLut;
 #endif
 uniform float uSize;
 uniform float uIntensity;
+uniform float uBrightness;
 uniform vec3 uDomainMin;
 uniform vec3 uDomainScale;
 
@@ -116,7 +117,7 @@ void main() {
   vec3 graded = texture(uLut, coord).rgb;
 #endif
 
-  fragColor = vec4(mix(src.rgb, graded, uIntensity), src.a);
+  fragColor = vec4(clamp(mix(src.rgb, graded, uIntensity), 0.0, 1.0) * uBrightness, src.a);
 }`;
 
 const UNIFORM_NAMES = [
@@ -124,6 +125,7 @@ const UNIFORM_NAMES = [
   "uLut",
   "uSize",
   "uIntensity",
+  "uBrightness",
   "uDomainMin",
   "uDomainScale",
 ] as const;
@@ -336,7 +338,7 @@ function createWebglRenderer(canvas: HTMLCanvasElement): LutRenderer | null {
       gl.activeTexture(gl.TEXTURE0 + IMAGE_UNIT);
     },
 
-    draw(intensity) {
+    draw(intensity, brightness = 1) {
       // With no LUT the cube program still runs, with intensity pinned to 0:
       // unit 1 is then simply empty, which samples as black and is mixed out.
       const { program, uniforms } = pipelineFor(lutTexture ? lutDimensions : 3);
@@ -353,6 +355,7 @@ function createWebglRenderer(canvas: HTMLCanvasElement): LutRenderer | null {
       gl.uniform1i(uniforms.uLut, LUT_UNIT);
 
       gl.uniform1f(uniforms.uSize, lutSize);
+      gl.uniform1f(uniforms.uBrightness, lutTexture ? brightness : 1);
       gl.uniform1f(uniforms.uIntensity, lutTexture ? clamp01(intensity) : 0);
       gl.uniform3fv(uniforms.uDomainMin, domainMin);
       gl.uniform3fv(uniforms.uDomainScale, domainScale);
@@ -435,7 +438,7 @@ function sampleCube(
  * collapses to three byte tables computed once — no per-pixel interpolation at
  * all, and the result is exact rather than approximate.
  */
-function buildCurveTables(lut: CubeLut, intensity: number) {
+function buildCurveTables(lut: CubeLut, intensity: number, brightness: number) {
   const tables = [new Uint8Array(256), new Uint8Array(256), new Uint8Array(256)];
   const scale = domainScaleOf(lut);
   const last = lut.size - 1;
@@ -454,7 +457,7 @@ function buildCurveTables(lut: CubeLut, intensity: number) {
         (lut.data[high * 3 + channel] - lut.data[low * 3 + channel]) * fraction;
 
       tables[channel][value] = Math.round(
-        clamp01(source + (graded - source) * intensity) * 255
+        clamp01(clamp01(source + (graded - source) * intensity) * brightness) * 255
       );
     }
   }
@@ -473,14 +476,24 @@ function buildCurveTables(lut: CubeLut, intensity: number) {
 export function applyLutToImageData(
   image: ImageData,
   lut: CubeLut,
-  intensity: number
+  intensity: number,
+  brightness = 1
 ): ImageData {
-  if (intensity <= 0) return image;
+  if (intensity <= 0) {
+    if (brightness !== 1) {
+      for (let index = 0; index < image.data.length; index += 4) {
+        for (let channel = 0; channel < 3; channel += 1) {
+          image.data[index + channel] = Math.round(image.data[index + channel] * brightness);
+        }
+      }
+    }
+    return image;
+  }
 
   const { data } = image;
 
   if (lut.dimensions === 1) {
-    const [red, green, blue] = buildCurveTables(lut, intensity);
+    const [red, green, blue] = buildCurveTables(lut, intensity, brightness);
 
     for (let index = 0; index < data.length; index += 4) {
       data[index] = red[data[index]];
@@ -524,9 +537,9 @@ export function applyLutToImageData(
       graded
     );
 
-    data[index] = Math.round(clamp01(r / 255 + (graded[0] - r / 255) * intensity) * 255);
-    data[index + 1] = Math.round(clamp01(g / 255 + (graded[1] - g / 255) * intensity) * 255);
-    data[index + 2] = Math.round(clamp01(b / 255 + (graded[2] - b / 255) * intensity) * 255);
+    data[index] = Math.round(clamp01(clamp01(r / 255 + (graded[0] - r / 255) * intensity) * brightness) * 255);
+    data[index + 1] = Math.round(clamp01(clamp01(g / 255 + (graded[1] - g / 255) * intensity) * brightness) * 255);
+    data[index + 2] = Math.round(clamp01(clamp01(b / 255 + (graded[2] - b / 255) * intensity) * brightness) * 255);
   }
 
   return image;
@@ -559,10 +572,10 @@ function createCpuRenderer(canvas: HTMLCanvasElement): LutRenderer | null {
       lut = next;
     },
 
-    draw(intensity) {
+    draw(intensity, brightness = 1) {
       if (!pristine) return;
 
-      if (!lut || intensity <= 0) {
+      if (!lut || (intensity <= 0 && brightness === 1)) {
         context.putImageData(pristine, 0, 0);
         return;
       }
@@ -573,7 +586,7 @@ function createCpuRenderer(canvas: HTMLCanvasElement): LutRenderer | null {
         pristine.height
       );
 
-      applyLutToImageData(working, lut, clamp01(intensity));
+      applyLutToImageData(working, lut, clamp01(intensity), brightness);
       context.putImageData(working, 0, 0);
     },
 

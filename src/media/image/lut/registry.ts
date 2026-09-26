@@ -29,6 +29,8 @@ export interface LutSelection {
   name: string;
   /** 0–1, a linear mix back toward the ungraded image. */
   intensity: number;
+  /** Multiplier after LUT mixing: 1 preserves brightness, range 0.5–2. */
+  brightness: number;
 }
 
 /**
@@ -36,12 +38,12 @@ export interface LutSelection {
  * Re-registering an identical file makes a second entry; that is fine, the
  * table is small next to the photos and the session is the lifetime.
  */
-export function registerLut(lut: CubeLut, intensity = 1): LutSelection {
+export function registerLut(lut: CubeLut, intensity = 1, brightness = 1): LutSelection {
   counter += 1;
   const id = `lut-${counter}`;
   TABLES.set(id, lut);
 
-  return { id, name: lut.title, intensity };
+  return { id, name: lut.title, intensity, brightness };
 }
 
 /** `undefined` once the session that registered it is gone — see the note above. */

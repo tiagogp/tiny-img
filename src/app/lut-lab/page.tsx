@@ -115,6 +115,7 @@ export default function LutLab() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [applied, setApplied] = useState<number | null>(null);
+  const [brightness, setBrightness] = useState(1);
   const [isOpen, setIsOpen] = useState(false);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -378,7 +379,11 @@ export default function LutLab() {
           file={photo}
           lut={lut}
           initialIntensity={applied ?? 1}
-          onApply={setApplied}
+          initialBrightness={brightness}
+          onApply={(intensity, light) => {
+            setApplied(intensity);
+            setBrightness(light);
+          }}
           onClose={() => setIsOpen(false)}
         />
       )}

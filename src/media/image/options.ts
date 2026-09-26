@@ -78,7 +78,8 @@ export const isSameImageOptions = (a: ImageOptions, b: ImageOptions) =>
   // Identity and strength, not the table: a reference is all that can differ,
   // and this runs on every render to decide whether the queue is dirty.
   a.lut?.id === b.lut?.id &&
-  a.lut?.intensity === b.lut?.intensity;
+  a.lut?.intensity === b.lut?.intensity &&
+  a.lut?.brightness === b.lut?.brightness;
 
 /**
  * Anything can be in localStorage — an older shape, a half-written value, a
@@ -143,7 +144,12 @@ export function coerceImageOptions(raw: unknown): ImageOptions {
     stored.intensity >= 0 &&
     stored.intensity <= 1 &&
     hasLutTable(stored.id)
-      ? { id: stored.id, name: stored.name, intensity: stored.intensity }
+      ? {
+          id: stored.id, name: stored.name, intensity: stored.intensity,
+          brightness: typeof stored.brightness === "number" &&
+            Number.isFinite(stored.brightness)
+              ? Math.min(2, Math.max(0.5, stored.brightness)) : 1,
+        }
       : null;
 
   return {

@@ -51,7 +51,8 @@ export async function withGradedCanvas<T>(
   source: ImageBitmap,
   lut: CubeLut,
   intensity: number,
-  consume: (canvas: HTMLCanvasElement) => T | Promise<T>
+  consume: (canvas: HTMLCanvasElement) => T | Promise<T>,
+  brightness = 1
 ): Promise<T | null> {
   const run = tail.then(async () => {
     const active = ensureRenderer();
@@ -59,7 +60,7 @@ export async function withGradedCanvas<T>(
 
     active.setSource(source);
     active.setLut(lut);
-    active.draw(intensity);
+    active.draw(intensity, brightness);
 
     return consume(active.canvas);
   });

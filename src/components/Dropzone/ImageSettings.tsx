@@ -1,5 +1,7 @@
 "use client";
 
+import LutBrightness from "./LutBrightness";
+
 import { FC, useRef, useState } from "react";
 import { Tag } from "../ui/Tag";
 import { Button } from "../ui/Button";
@@ -82,7 +84,7 @@ const ImageSettings: FC<ImageSettingsProps> = ({
       // Replacing one LUT with another drops the old table rather than letting
       // a long session accumulate every cube that was ever tried.
       if (options.lut) forgetLut(options.lut.id);
-      update({ lut: registerLut(parsed, options.lut?.intensity ?? 1) });
+      update({ lut: registerLut(parsed, options.lut?.intensity ?? 1, options.lut?.brightness ?? 1) });
     } catch (cause) {
       setLutError(
         cause instanceof CubeParseError
@@ -351,6 +353,14 @@ const ImageSettings: FC<ImageSettingsProps> = ({
                 className="mt-5 w-full cursor-pointer accent-action"
               />
 
+              <LutBrightness
+                id="lut-brightness-setting"
+                value={options.lut.brightness}
+                onChange={(brightness) => update({
+                  lut: options.lut ? { ...options.lut, brightness } : null,
+                })}
+              />
+
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <Button
                   variant="secondary"
@@ -439,8 +449,9 @@ const ImageSettings: FC<ImageSettingsProps> = ({
           file={sampleImage}
           lut={lutTable}
           initialIntensity={options.lut.intensity}
-          onApply={(intensity) =>
-            update({ lut: options.lut ? { ...options.lut, intensity } : null })
+          initialBrightness={options.lut.brightness}
+          onApply={(intensity, brightness) =>
+            update({ lut: options.lut ? { ...options.lut, intensity, brightness } : null })
           }
           onClose={() => setIsPreviewOpen(false)}
         />

@@ -521,7 +521,7 @@ export const Dropzone = () => {
 
       const next: ImageOptions = {
         ...current,
-        lut: registerLut(parsed, current.lut?.intensity ?? 1),
+        lut: registerLut(parsed, current.lut?.intensity ?? 1, current.lut?.brightness ?? 1),
       };
 
       draftOptionsRef.current = { ...draftOptionsRef.current, image: next };

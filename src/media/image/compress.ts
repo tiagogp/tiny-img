@@ -298,7 +298,7 @@ async function compressOnCanvas(
       const graded = await withGradedCanvas(bitmap, lut, intensity, (gpu) => {
         context.drawImage(gpu, 0, 0);
         return true;
-      });
+      }, options.lut?.brightness ?? 1);
 
       if (!graded) {
         throw new Error("The LUT could not be applied in this browser.");
